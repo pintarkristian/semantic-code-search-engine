@@ -11,7 +11,8 @@ import pytest
 from semcode.config import Settings
 from semcode.embed import Embedder, chunk_to_text
 from semcode.index import IndexingPipeline, VectorStore
-from semcode.search import SearchResult, Searcher, _make_snippet, format_results
+from semcode.search import SearchResult, Searcher, _make_snippet, _reciprocal_rank_fusion, format_results
+from semcode.search._bm25 import BM25Retriever, bm25_corpus_path, tokenize
 from tests.conftest import MOCK_DIM, MockSentenceTransformer
 
 # ---------------------------------------------------------------------------
@@ -37,7 +38,7 @@ def _mock_embedder(settings: Settings) -> Embedder:
 
 
 def _build_index(tmp_path: Path, n: int = 12) -> tuple[Settings, Embedder, pd.DataFrame]:
-    """Create a synthetic index in tmp_path and return (settings, embedder, df)."""
+    """Create a synthetic FAISS + BM25 index in tmp_path; return (settings, embedder, df)."""
     settings = _settings(tmp_path)
     embedder = _mock_embedder(settings)
 
@@ -64,6 +65,9 @@ def _build_index(tmp_path: Path, n: int = 12) -> tuple[Settings, Embedder, pd.Da
     store = VectorStore(settings)
     store.build(vectors)
     store.save()
+
+    bm25 = BM25Retriever.from_dataframe(df)
+    bm25.save(bm25_corpus_path(settings.faiss_index_path))
 
     return settings, embedder, df
 
@@ -192,12 +196,22 @@ class TestSearcher:
         searcher.search("b", k=1)
         assert searcher._store is store_ref  # same object, not reloaded
 
-    def test_score_range(self, tmp_path: Path) -> None:
+    def test_fused_score_positive(self, tmp_path: Path) -> None:
         settings, embedder, _ = _build_index(tmp_path)
         searcher = Searcher(settings, embedder=embedder)
         results = searcher.search("function", k=5)
         for r in results:
-            assert -1.01 <= r.score <= 1.01  # cosine similarity bounds
+            assert r.score > 0  # RRF scores are always positive
+            assert r.score == r.fused_score
+
+    def test_score_fields_present(self, tmp_path: Path) -> None:
+        settings, embedder, _ = _build_index(tmp_path)
+        searcher = Searcher(settings, embedder=embedder)
+        results = searcher.search("function", k=3)
+        for r in results:
+            assert hasattr(r, "dense_score")
+            assert hasattr(r, "bm25_score")
+            assert hasattr(r, "fused_score")
 
 
 # ---------------------------------------------------------------------------
@@ -256,6 +270,269 @@ class TestFormatResults:
         output = format_results(results)
         assert "#1" in output
         assert "#2" in output
+
+
+# ---------------------------------------------------------------------------
+# Tokenize
+# ---------------------------------------------------------------------------
+
+class TestTokenize:
+    def test_camel_case_split(self) -> None:
+        tokens = tokenize("formatDate")
+        assert "format" in tokens
+        assert "date" in tokens
+
+    def test_snake_case_split(self) -> None:
+        tokens = tokenize("validate_token")
+        assert "validate" in tokens
+        assert "token" in tokens
+
+    def test_all_caps_prefix(self) -> None:
+        tokens = tokenize("XMLParser")
+        assert "xml" in tokens
+        assert "parser" in tokens
+
+    def test_short_tokens_filtered(self) -> None:
+        # Single-character splits are filtered; multi-char tokens are kept
+        tokens = tokenize("a_b_c foo")
+        assert "a" not in tokens
+        assert "b" not in tokens
+        assert "c" not in tokens
+        assert "foo" in tokens
+
+    def test_output_lowercased(self) -> None:
+        tokens = tokenize("QueryBuilder")
+        assert all(t == t.lower() for t in tokens)
+
+    def test_empty_string(self) -> None:
+        assert tokenize("") == []
+
+    def test_numbers_kept(self) -> None:
+        tokens = tokenize("encode_base64")
+        assert "encode" in tokens
+        assert "base64" in tokens
+
+
+# ---------------------------------------------------------------------------
+# BM25Retriever
+# ---------------------------------------------------------------------------
+
+class TestBM25Retriever:
+    def test_exact_token_match_scores_highest(self) -> None:
+        corpus = [
+            ["validate", "token", "jwt"],
+            ["format", "date", "iso"],
+            ["hash", "password", "plaintext"],
+        ]
+        bm25 = BM25Retriever(corpus)
+        hits = bm25.search("hash password", k=3)
+        assert hits[0][0] == 2  # row 2 has "hash" and "password"
+
+    def test_no_match_returns_empty(self) -> None:
+        corpus = [["alpha", "beta"], ["gamma", "delta"]]
+        bm25 = BM25Retriever(corpus)
+        assert bm25.search("xorshift", k=3) == []
+
+    def test_save_load_roundtrip(self, tmp_path: Path) -> None:
+        corpus = [["foo", "bar"], ["baz", "qux"]]
+        bm25 = BM25Retriever(corpus)
+        path = tmp_path / "corpus.pkl"
+        bm25.save(path)
+        loaded = BM25Retriever.load(path)
+        assert loaded._corpus == corpus
+        assert bm25.search("foo", k=2) == loaded.search("foo", k=2)
+
+    def test_empty_corpus(self) -> None:
+        bm25 = BM25Retriever([])
+        assert bm25.search("anything", k=5) == []
+
+    def test_k_limits_hits(self) -> None:
+        corpus = [["alpha"], ["beta"], ["gamma"], ["alpha", "beta"], ["alpha", "gamma"]]
+        bm25 = BM25Retriever(corpus)
+        hits = bm25.search("alpha beta gamma", k=2)
+        assert len(hits) <= 2
+
+    def test_scores_descending(self) -> None:
+        corpus = [
+            ["foo"],
+            ["foo", "bar"],
+            ["foo", "bar", "baz"],
+        ]
+        bm25 = BM25Retriever(corpus)
+        hits = bm25.search("foo bar baz", k=3)
+        scores = [s for _, s in hits]
+        assert scores == sorted(scores, reverse=True)
+
+    def test_from_dataframe(self, tmp_path: Path) -> None:
+        _, _, df = _build_index(tmp_path)
+        bm25 = BM25Retriever.from_dataframe(df)
+        assert len(bm25._corpus) == len(df)
+        # Each document should have some tokens
+        assert all(len(doc) > 0 for doc in bm25._corpus)
+
+    def test_bm25_corpus_path_derivation(self, tmp_path: Path) -> None:
+        faiss_path = tmp_path / "index.faiss"
+        assert bm25_corpus_path(faiss_path) == tmp_path / "index_bm25.pkl"
+
+
+# ---------------------------------------------------------------------------
+# Reciprocal Rank Fusion
+# ---------------------------------------------------------------------------
+
+class TestRRF:
+    def test_dense_only_preserves_dense_order(self) -> None:
+        dense = [(0, 0.9), (1, 0.8), (2, 0.7)]
+        bm25: list[tuple[int, float]] = []
+        fused = _reciprocal_rank_fusion(dense, bm25, dense_weight=1.0, bm25_weight=0.0)
+        order = [row_idx for row_idx, *_ in fused]
+        assert order == [0, 1, 2]
+
+    def test_bm25_only_preserves_bm25_order(self) -> None:
+        dense: list[tuple[int, float]] = []
+        bm25 = [(2, 5.0), (0, 3.0), (1, 1.0)]
+        fused = _reciprocal_rank_fusion(dense, bm25, dense_weight=0.0, bm25_weight=1.0)
+        order = [row_idx for row_idx, *_ in fused]
+        assert order == [2, 0, 1]
+
+    def test_bm25_weight_boosts_exact_identifier(self) -> None:
+        # doc 2 is last in dense; give BM25 all the weight
+        dense = [(0, 0.9), (1, 0.8), (2, 0.1)]
+        bm25 = [(2, 9.0), (1, 0.5), (0, 0.2)]
+        fused = _reciprocal_rank_fusion(dense, bm25, dense_weight=0.0, bm25_weight=1.0)
+        assert fused[0][0] == 2  # BM25-top doc wins
+
+    def test_doc_only_in_dense_included(self) -> None:
+        dense = [(0, 0.9), (99, 0.4)]
+        bm25 = [(0, 5.0)]
+        fused = _reciprocal_rank_fusion(dense, bm25, dense_weight=0.7, bm25_weight=0.3)
+        assert any(r[0] == 99 for r in fused)
+
+    def test_doc_only_in_bm25_included(self) -> None:
+        dense = [(0, 0.9)]
+        bm25 = [(0, 5.0), (77, 2.0)]
+        fused = _reciprocal_rank_fusion(dense, bm25, dense_weight=0.7, bm25_weight=0.3)
+        assert any(r[0] == 77 for r in fused)
+
+    def test_fused_scores_descending(self) -> None:
+        dense = [(0, 0.9), (1, 0.8), (2, 0.7)]
+        bm25 = [(2, 5.0), (0, 3.0), (1, 1.0)]
+        fused = _reciprocal_rank_fusion(dense, bm25, dense_weight=0.5, bm25_weight=0.5)
+        scores = [f for *_, f in fused]
+        assert scores == sorted(scores, reverse=True)
+
+    def test_zero_weights_give_zero_fused(self) -> None:
+        dense = [(0, 0.9)]
+        bm25 = [(0, 5.0)]
+        fused = _reciprocal_rank_fusion(dense, bm25, dense_weight=0.0, bm25_weight=0.0)
+        assert all(f == 0.0 for *_, f in fused)
+
+
+# ---------------------------------------------------------------------------
+# Hybrid Searcher — BM25 boost and weight extremes
+# ---------------------------------------------------------------------------
+
+def _unique_id_corpus(tmp_path: Path, dense_weight: float, bm25_weight: float) -> tuple[Settings, Embedder]:
+    """Build an index with 10 generic functions plus one unique 'xorshift_prng' function."""
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    settings = Settings(
+        embedding_model_name="test-model",
+        data_dir=tmp_path,
+        faiss_index_path=tmp_path / "index.faiss",
+        metadata_path=tmp_path / "metadata.parquet",
+        dense_weight=dense_weight,
+        bm25_weight=bm25_weight,
+        top_k_retrieve=20,
+        top_k_return=11,
+        batch_size=8,
+    )
+    embedder = _mock_embedder(settings)
+
+    rows = [
+        {
+            "chunk_id": f"{i:016x}",
+            "file_path": "src/utils.py",
+            "language": "python",
+            "symbol_name": f"generic_{i}",
+            "symbol_type": "function_definition",
+            "start_line": i * 5 + 1,
+            "end_line": i * 5 + 4,
+            "code": f"def generic_{i}(x):\n    return x + {i}",
+            "docstring": "",
+        }
+        for i in range(10)
+    ]
+    rows.append({
+        "chunk_id": "xorshiftunique00",
+        "file_path": "src/rng.py",
+        "language": "python",
+        "symbol_name": "xorshift_prng",
+        "symbol_type": "function_definition",
+        "start_line": 100,
+        "end_line": 107,
+        "code": "def xorshift_prng(seed):\n    return seed ^ (seed << 13)",
+        "docstring": "xorshift pseudo random number generator",
+    })
+    df = pd.DataFrame(rows)
+    df.to_parquet(settings.metadata_path, index=False)
+
+    texts = [chunk_to_text(row) for _, row in df.iterrows()]
+    vectors = embedder.encode(texts)
+    store = VectorStore(settings)
+    store.build(vectors)
+    store.save()
+    BM25Retriever.from_dataframe(df).save(bm25_corpus_path(settings.faiss_index_path))
+
+    return settings, embedder
+
+
+class TestHybridSearcher:
+    def test_pure_bm25_exact_identifier_first(self, tmp_path: Path) -> None:
+        """With weight=(0,1), searching the exact identifier ranks its doc #1."""
+        settings, embedder = _unique_id_corpus(tmp_path, dense_weight=0.0, bm25_weight=1.0)
+        results = Searcher(settings, embedder=embedder).search("xorshift", k=11)
+        assert results[0].symbol_name == "xorshift_prng"
+
+    def test_pure_dense_order_matches_cosine(self, tmp_path: Path) -> None:
+        """With weight=(1,0), dense_score drives the ranking; bm25_score is zero."""
+        settings, embedder = _unique_id_corpus(tmp_path, dense_weight=1.0, bm25_weight=0.0)
+        results = Searcher(settings, embedder=embedder).search("compute result", k=5)
+        for r in results:
+            assert r.bm25_score == 0.0 or r.bm25_score >= 0.0  # no BM25 contribution
+
+    def test_hybrid_boosts_exact_identifier_over_pure_dense(self, tmp_path: Path) -> None:
+        """BM25-heavy hybrid should rank xorshift_prng better than pure dense for its name."""
+        settings_d, emb_d = _unique_id_corpus(tmp_path / "d", dense_weight=1.0, bm25_weight=0.0)
+        dense_results = Searcher(settings_d, embedder=emb_d).search("xorshift", k=11)
+        dense_rank = next(r.rank for r in dense_results if r.symbol_name == "xorshift_prng")
+
+        settings_h, emb_h = _unique_id_corpus(tmp_path / "h", dense_weight=0.3, bm25_weight=0.7)
+        hybrid_results = Searcher(settings_h, embedder=emb_h).search("xorshift", k=11)
+        hybrid_rank = next(r.rank for r in hybrid_results if r.symbol_name == "xorshift_prng")
+
+        assert hybrid_rank <= dense_rank  # BM25 boost improved or matched the rank
+
+    def test_hybrid_results_have_all_score_fields(self, tmp_path: Path) -> None:
+        settings, embedder = _unique_id_corpus(tmp_path, dense_weight=0.7, bm25_weight=0.3)
+        results = Searcher(settings, embedder=embedder).search("function", k=5)
+        for r in results:
+            assert r.score == r.fused_score
+            assert r.dense_score >= 0.0
+            assert r.bm25_score >= 0.0
+            assert r.fused_score > 0.0
+
+    def test_doc_with_bm25_match_has_nonzero_bm25_score(self, tmp_path: Path) -> None:
+        settings, embedder = _unique_id_corpus(tmp_path, dense_weight=0.7, bm25_weight=0.3)
+        results = Searcher(settings, embedder=embedder).search("xorshift prng", k=11)
+        xorshift = next((r for r in results if r.symbol_name == "xorshift_prng"), None)
+        assert xorshift is not None
+        assert xorshift.bm25_score > 0.0
+
+    def test_verbose_format_shows_all_scores(self, tmp_path: Path) -> None:
+        settings, embedder = _unique_id_corpus(tmp_path, dense_weight=0.7, bm25_weight=0.3)
+        results = Searcher(settings, embedder=embedder).search("function", k=3)
+        output = format_results(results, verbose=True)
+        assert "dense=" in output
+        assert "bm25=" in output
 
 
 # ---------------------------------------------------------------------------

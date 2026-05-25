@@ -2,6 +2,6 @@
   "model_name": "flax-sentence-embeddings/st-codesearch-distilroberta-base",
   "dimension": 768,
   "chunk_count": 16,
-  "built_at": "2026-05-25T04:15:19.842132+00:00",
+  "built_at": "2026-05-25T05:56:20.387472+00:00",
   "index_type": "flat"
 }
