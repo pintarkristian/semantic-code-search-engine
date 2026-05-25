@@ -17,16 +17,16 @@ def test_help_lists_all_subcommands() -> None:
         assert cmd in result.output
 
 
-def test_index_stub(tmp_path: Path) -> None:
+def test_index_runs_ingestor(tmp_path: Path) -> None:
     result = runner.invoke(app, ["index", str(tmp_path)])
     assert result.exit_code == 0
-    assert "not yet implemented" in result.output
+    assert "ingested" in result.output
 
 
 def test_index_rebuild_flag(tmp_path: Path) -> None:
     result = runner.invoke(app, ["index", str(tmp_path), "--rebuild"])
     assert result.exit_code == 0
-    assert "rebuild=True" in result.output
+    assert "ingested" in result.output
 
 
 def test_search_stub() -> None:

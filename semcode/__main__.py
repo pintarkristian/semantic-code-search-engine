@@ -29,8 +29,13 @@ def index(
     """Walk a repository, parse source files, embed chunks, and build the search index."""
     _setup()
     log = get_logger(__name__)
-    log.info("index stub called", repo_path=str(repo_path), rebuild=rebuild)
-    typer.echo(f"[semcode] indexing {repo_path} (rebuild={rebuild}) — not yet implemented (M2–M4)")
+    if not repo_path.exists():
+        typer.echo(f"[semcode] error: {repo_path} does not exist", err=True)
+        raise typer.Exit(1)
+    log.info("starting ingestion", repo_path=str(repo_path), rebuild=rebuild)
+    from semcode.ingest import ingest as _ingest
+    df = _ingest(repo_path)
+    typer.echo(f"[semcode] ingested {len(df)} chunks from {repo_path}")
 
 
 @app.command()
