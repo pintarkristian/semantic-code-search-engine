@@ -1,0 +1,17 @@
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+pydantic-settings==2.6.1
+pandas==2.2.3
+pyarrow==18.1.0
+torch==2.5.1
+transformers==4.47.1
+sentence-transformers==3.3.1
+faiss-cpu==1.9.0
+rank-bm25==0.2.2
+tensorflow==2.18.0
+tree-sitter==0.23.2
+tree-sitter-languages==1.10.2
+numpy==2.0.2
+tqdm==4.67.1
+structlog==24.4.0
