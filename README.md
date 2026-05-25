@@ -1,4 +1,4 @@
-# semcode
+# Semantic Code Search Engine
 
 ![Python](https://img.shields.io/badge/python-3.11-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -7,10 +7,7 @@
 
 > **Search your codebase by what you mean, not what you typed.**
 
-> ⚠️ **This project is currently in active development.** The repository contains the initial
-> scaffold (M0) — package stubs, tooling, and this README. Features described below represent
-> the planned design and will be built milestone by milestone. Nothing beyond the package
-> structure is implemented yet.
+> ⚠️ **This project is currently in active development.** 
 
 ---
 

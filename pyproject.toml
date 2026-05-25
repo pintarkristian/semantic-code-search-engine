@@ -51,3 +51,6 @@ exclude = ["tests/", "scripts/"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "--cov=semcode --cov-report=term-missing"
+markers = [
+    "slow: downloads and runs real ML models — pass --slow to include",
+]
