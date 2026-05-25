@@ -1,0 +1,396 @@
+"""Tests for semcode.index — VectorStore and IndexingPipeline."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from semcode.config import Settings
+from semcode.embed import Embedder
+from semcode.index import (
+    IndexingPipeline,
+    ManifestMismatchError,
+    VectorStore,
+)
+from tests.conftest import MOCK_DIM, MockSentenceTransformer
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+FIXTURE_REPO = Path(__file__).parent / "fixtures" / "sample_repo"
+
+
+def _unit_vectors(n: int, dim: int = MOCK_DIM, seed: int = 0) -> np.ndarray:
+    """Return n random L2-normalised float32 vectors."""
+    rng = np.random.default_rng(seed)
+    vecs = rng.standard_normal((n, dim)).astype(np.float32)
+    norms = np.linalg.norm(vecs, axis=1, keepdims=True)
+    return vecs / norms
+
+
+def _settings(tmp_path: Path, model_name: str = "test-model") -> Settings:
+    return Settings(
+        embedding_model_name=model_name,
+        data_dir=tmp_path,
+        faiss_index_path=tmp_path / "index.faiss",
+        metadata_path=tmp_path / "metadata.parquet",
+        batch_size=8,
+    )
+
+
+def _mock_embedder(settings: Settings) -> Embedder:
+    return Embedder(settings, _model=MockSentenceTransformer())
+
+
+# ---------------------------------------------------------------------------
+# VectorStore — build
+# ---------------------------------------------------------------------------
+
+def test_build_flat_index(tmp_path: Path) -> None:
+    vecs = _unit_vectors(50)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+    assert store.ntotal == 50
+
+
+def test_build_sets_manifest(tmp_path: Path) -> None:
+    vecs = _unit_vectors(10)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+    assert store.manifest is not None
+    assert store.manifest["chunk_count"] == 10
+    assert store.manifest["dimension"] == MOCK_DIM
+    assert store.manifest["model_name"] == "test-model"
+    assert store.manifest["index_type"] == "flat"
+
+
+def test_build_ivf_above_threshold(tmp_path: Path) -> None:
+    # Use ivf_threshold=20 so a small corpus triggers IVF
+    vecs = _unit_vectors(100)
+    store = VectorStore(_settings(tmp_path), ivf_threshold=20)
+    store.build(vecs)
+    assert store.manifest is not None
+    assert store.manifest["index_type"] == "ivf"
+    assert store.ntotal == 100
+
+
+def test_build_empty_corpus(tmp_path: Path) -> None:
+    vecs = np.zeros((0, MOCK_DIM), dtype=np.float32)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+    assert store.ntotal == 0
+    assert store.manifest is not None
+    assert store.manifest["chunk_count"] == 0
+
+
+def test_build_rejects_1d_array(tmp_path: Path) -> None:
+    store = VectorStore(_settings(tmp_path))
+    with pytest.raises(ValueError, match="2-D"):
+        store.build(np.zeros(MOCK_DIM, dtype=np.float32))
+
+
+# ---------------------------------------------------------------------------
+# VectorStore — search
+# ---------------------------------------------------------------------------
+
+def test_nearest_neighbour_is_self(tmp_path: Path) -> None:
+    """A vector's nearest neighbour in the index must be itself."""
+    vecs = _unit_vectors(30)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+
+    for i in range(len(vecs)):
+        results = store.search(vecs[i], k=1)
+        assert len(results) == 1
+        row_idx, score = results[0]
+        assert row_idx == i, f"Expected self at index {i}, got {row_idx}"
+        assert score == pytest.approx(1.0, abs=1e-4)
+
+
+def test_search_returns_k_results(tmp_path: Path) -> None:
+    vecs = _unit_vectors(20)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+    results = store.search(vecs[0], k=5)
+    assert len(results) == 5
+
+
+def test_search_k_clamped_to_ntotal(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+    results = store.search(vecs[0], k=100)
+    assert len(results) == 3
+
+
+def test_search_scores_descending(tmp_path: Path) -> None:
+    vecs = _unit_vectors(15)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+    results = store.search(vecs[0], k=5)
+    scores = [s for _, s in results]
+    assert scores == sorted(scores, reverse=True)
+
+
+def test_search_returns_row_indices(tmp_path: Path) -> None:
+    vecs = _unit_vectors(10)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+    results = store.search(vecs[0], k=3)
+    for idx, _ in results:
+        assert 0 <= idx < 10
+
+
+def test_search_2d_query_accepted(tmp_path: Path) -> None:
+    vecs = _unit_vectors(10)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+    query = vecs[0:1]  # shape (1, dim)
+    results = store.search(query, k=1)
+    assert results[0][0] == 0
+
+
+def test_search_before_build_raises(tmp_path: Path) -> None:
+    store = VectorStore(_settings(tmp_path))
+    with pytest.raises(RuntimeError, match="build"):
+        store.search(np.zeros(MOCK_DIM, dtype=np.float32), k=1)
+
+
+def test_search_empty_index_returns_empty(tmp_path: Path) -> None:
+    vecs = np.zeros((0, MOCK_DIM), dtype=np.float32)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+    results = store.search(np.zeros(MOCK_DIM, dtype=np.float32), k=5)
+    assert results == []
+
+
+# ---------------------------------------------------------------------------
+# VectorStore — save / load round-trip
+# ---------------------------------------------------------------------------
+
+def test_save_creates_index_file(tmp_path: Path) -> None:
+    vecs = _unit_vectors(10)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+    store.save()
+    assert (tmp_path / "index.faiss").exists()
+
+
+def test_save_creates_manifest_file(tmp_path: Path) -> None:
+    vecs = _unit_vectors(10)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+    store.save()
+    assert (tmp_path / "index.json").exists()
+
+
+def test_roundtrip_preserves_search_results(tmp_path: Path) -> None:
+    """Search results must be identical before and after save/load."""
+    vecs = _unit_vectors(25)
+    s = _settings(tmp_path)
+
+    store = VectorStore(s)
+    store.build(vecs)
+    before = store.search(vecs[3], k=5)
+    store.save()
+
+    store2 = VectorStore(s)
+    store2.load()
+    after = store2.search(vecs[3], k=5)
+
+    assert before == after
+
+
+def test_roundtrip_ntotal(tmp_path: Path) -> None:
+    vecs = _unit_vectors(18)
+    s = _settings(tmp_path)
+    store = VectorStore(s)
+    store.build(vecs)
+    store.save()
+
+    store2 = VectorStore(s)
+    store2.load()
+    assert store2.ntotal == 18
+
+
+def test_roundtrip_nn_is_self_after_load(tmp_path: Path) -> None:
+    vecs = _unit_vectors(20)
+    s = _settings(tmp_path)
+    store = VectorStore(s)
+    store.build(vecs)
+    store.save()
+
+    store2 = VectorStore(s)
+    store2.load()
+    for i in range(len(vecs)):
+        results = store2.search(vecs[i], k=1)
+        assert results[0][0] == i
+
+
+def test_roundtrip_ivf_preserves_results(tmp_path: Path) -> None:
+    vecs = _unit_vectors(100)
+    s = _settings(tmp_path)
+    store = VectorStore(s, ivf_threshold=20)
+    store.build(vecs)
+    before = store.search(vecs[0], k=3)
+    store.save()
+
+    store2 = VectorStore(s, ivf_threshold=20)
+    store2.load()
+    after = store2.search(vecs[0], k=3)
+    assert before == after
+
+
+# ---------------------------------------------------------------------------
+# VectorStore — manifest validation
+# ---------------------------------------------------------------------------
+
+def test_load_missing_index_raises(tmp_path: Path) -> None:
+    store = VectorStore(_settings(tmp_path))
+    with pytest.raises(FileNotFoundError):
+        store.load()
+
+
+def test_load_missing_manifest_raises(tmp_path: Path) -> None:
+    # Write index but no manifest
+    vecs = _unit_vectors(5)
+    s = _settings(tmp_path)
+    store = VectorStore(s)
+    store.build(vecs)
+    store.save()
+    (tmp_path / "index.json").unlink()
+    store2 = VectorStore(s)
+    with pytest.raises(FileNotFoundError):
+        store2.load()
+
+
+def test_model_name_mismatch_raises(tmp_path: Path) -> None:
+    vecs = _unit_vectors(10)
+    s_build = _settings(tmp_path, model_name="model-A")
+    store = VectorStore(s_build)
+    store.build(vecs)
+    store.save()
+
+    s_load = _settings(tmp_path, model_name="model-B")
+    store2 = VectorStore(s_load)
+    with pytest.raises(ManifestMismatchError, match="model"):
+        store2.load()
+
+
+def test_dimension_mismatch_raises(tmp_path: Path) -> None:
+    vecs = _unit_vectors(10, dim=MOCK_DIM)
+    s = _settings(tmp_path)
+    store = VectorStore(s)
+    store.build(vecs)
+    store.save()
+
+    store2 = VectorStore(s)
+    with pytest.raises(ManifestMismatchError, match="dimension"):
+        store2.load(expected_dim=MOCK_DIM + 1)
+
+
+def test_correct_expected_dim_loads_fine(tmp_path: Path) -> None:
+    vecs = _unit_vectors(10)
+    s = _settings(tmp_path)
+    store = VectorStore(s)
+    store.build(vecs)
+    store.save()
+
+    store2 = VectorStore(s)
+    store2.load(expected_dim=MOCK_DIM)  # should not raise
+    assert store2.ntotal == 10
+
+
+def test_save_before_build_raises(tmp_path: Path) -> None:
+    store = VectorStore(_settings(tmp_path))
+    with pytest.raises(RuntimeError, match="build"):
+        store.save()
+
+
+# ---------------------------------------------------------------------------
+# IndexingPipeline
+# ---------------------------------------------------------------------------
+
+def test_pipeline_produces_parquet(tmp_path: Path) -> None:
+    s = _settings(tmp_path)
+    pipeline = IndexingPipeline(s, embedder=_mock_embedder(s))
+    pipeline.run(FIXTURE_REPO)
+    assert s.metadata_path.exists()
+
+
+def test_pipeline_produces_faiss_index(tmp_path: Path) -> None:
+    s = _settings(tmp_path)
+    pipeline = IndexingPipeline(s, embedder=_mock_embedder(s))
+    pipeline.run(FIXTURE_REPO)
+    assert s.faiss_index_path.exists()
+
+
+def test_pipeline_produces_manifest(tmp_path: Path) -> None:
+    s = _settings(tmp_path)
+    pipeline = IndexingPipeline(s, embedder=_mock_embedder(s))
+    pipeline.run(FIXTURE_REPO)
+    assert s.faiss_index_path.with_suffix(".json").exists()
+
+
+def test_pipeline_returns_matching_df_and_vectors(tmp_path: Path) -> None:
+    s = _settings(tmp_path)
+    emb = _mock_embedder(s)
+    pipeline = IndexingPipeline(s, embedder=emb)
+    df, vectors = pipeline.run(FIXTURE_REPO)
+
+    assert len(df) == vectors.shape[0]
+    assert vectors.shape[1] == MOCK_DIM
+    assert vectors.dtype == np.float32
+
+
+def test_pipeline_vectors_are_unit_length(tmp_path: Path) -> None:
+    s = _settings(tmp_path)
+    pipeline = IndexingPipeline(s, embedder=_mock_embedder(s))
+    _, vectors = pipeline.run(FIXTURE_REPO)
+    norms = np.linalg.norm(vectors, axis=1)
+    np.testing.assert_allclose(norms, np.ones(len(norms)), atol=1e-4)
+
+
+def test_pipeline_index_loadable(tmp_path: Path) -> None:
+    s = _settings(tmp_path)
+    pipeline = IndexingPipeline(s, embedder=_mock_embedder(s))
+    df, vectors = pipeline.run(FIXTURE_REPO)
+
+    store = VectorStore(s)
+    store.load(expected_dim=MOCK_DIM)
+    assert store.ntotal == len(df)
+
+
+def test_pipeline_nn_is_self_after_full_run(tmp_path: Path) -> None:
+    """End-to-end: the nearest neighbour of any chunk vector must be itself."""
+    s = _settings(tmp_path)
+    pipeline = IndexingPipeline(s, embedder=_mock_embedder(s))
+    df, vectors = pipeline.run(FIXTURE_REPO)
+
+    store = VectorStore(s)
+    store.load()
+
+    misses = 0
+    for i in range(len(vectors)):
+        results = store.search(vectors[i], k=1)
+        if not results or results[0][0] != i:
+            misses += 1
+    assert misses == 0, f"{misses}/{len(vectors)} vectors did not self-retrieve"
+
+
+def test_pipeline_empty_repo(tmp_path: Path) -> None:
+    repo = tmp_path / "empty_repo"
+    repo.mkdir()
+    s = _settings(tmp_path)
+    pipeline = IndexingPipeline(s, embedder=_mock_embedder(s))
+    df, vectors = pipeline.run(repo)
+    assert len(df) == 0
+    assert vectors.shape[0] == 0
+    # All artifacts are still written
+    assert s.metadata_path.exists()
+    assert s.faiss_index_path.exists()
+    assert s.faiss_index_path.with_suffix(".json").exists()
