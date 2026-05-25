@@ -1,27 +1,27 @@
-"""Dense semantic search over a FAISS index.
+"""Dense + BM25 hybrid search with Reciprocal Rank Fusion.
 
 Public surface:
-    SearchResult   — pydantic result model
-    Searcher       — load once, search many times
+    SearchResult   — pydantic result model (dense / bm25 / fused scores)
+    Searcher       — load once, search many times (RRF fusion)
     format_results — terminal renderer
 """
 
 from __future__ import annotations
-
-from typing import Any
 
 import numpy as np
 import pandas as pd
 from pydantic import BaseModel
 
 from semcode.config import Settings, get_settings
-from semcode.embed import Embedder, chunk_to_text
+from semcode.embed import Embedder
+from semcode.search._bm25 import BM25Retriever, bm25_corpus_path, tokenize
 from semcode.index import VectorStore
 from semcode.logging import get_logger
 
 log = get_logger(__name__)
 
-_SNIPPET_LINES = 6  # max lines shown per result in terminal output
+_SNIPPET_LINES = 6
+_RRF_K: int = 60  # standard RRF smoothing constant
 
 
 # ---------------------------------------------------------------------------
@@ -29,8 +29,20 @@ _SNIPPET_LINES = 6  # max lines shown per result in terminal output
 # ---------------------------------------------------------------------------
 
 class SearchResult(BaseModel):
+    """One ranked search result.
+
+    ``score`` equals ``fused_score`` and is kept for backward compatibility
+    with formatters and callers that were written before hybrid retrieval.
+    The individual ``dense_score`` and ``bm25_score`` are raw values (cosine
+    similarity and BM25 score respectively); they are zero when a document was
+    not retrieved by that source.  All three are available for the M7 re-ranker.
+    """
+
     rank: int
-    score: float
+    score: float           # == fused_score (backward-compat alias)
+    dense_score: float = 0.0
+    bm25_score: float = 0.0
+    fused_score: float = 0.0
     file_path: str
     symbol_name: str
     symbol_type: str
@@ -41,11 +53,61 @@ class SearchResult(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Reciprocal Rank Fusion
+# ---------------------------------------------------------------------------
+
+def _reciprocal_rank_fusion(
+    dense_hits: list[tuple[int, float]],
+    bm25_hits: list[tuple[int, float]],
+    *,
+    dense_weight: float,
+    bm25_weight: float,
+    k: int = _RRF_K,
+) -> list[tuple[int, float, float, float]]:
+    """Weighted RRF over dense and BM25 hit lists.
+
+    Args:
+        dense_hits: [(row_idx, cosine_score), …] sorted by score descending.
+        bm25_hits:  [(row_idx, bm25_score),   …] sorted by score descending.
+        dense_weight: weight applied to dense RRF contributions.
+        bm25_weight:  weight applied to BM25 RRF contributions.
+        k: RRF smoothing constant (default 60).
+
+    Returns:
+        [(row_idx, dense_score, bm25_score, fused_score), …] sorted by
+        fused_score descending.  Documents appearing in only one list get
+        a zero contribution from the missing source.
+    """
+    dense_map: dict[int, tuple[int, float]] = {
+        row_idx: (rank + 1, score)
+        for rank, (row_idx, score) in enumerate(dense_hits)
+    }
+    bm25_map: dict[int, tuple[int, float]] = {
+        row_idx: (rank + 1, score)
+        for rank, (row_idx, score) in enumerate(bm25_hits)
+    }
+
+    fused: list[tuple[int, float, float, float]] = []
+    for row_idx in set(dense_map) | set(bm25_map):
+        d_rank, d_score = dense_map.get(row_idx, (0, 0.0))
+        b_rank, b_score = bm25_map.get(row_idx, (0, 0.0))
+        d_rrf = dense_weight / (k + d_rank) if d_rank > 0 else 0.0
+        b_rrf = bm25_weight / (k + b_rank) if b_rank > 0 else 0.0
+        fused.append((row_idx, d_score, b_score, d_rrf + b_rrf))
+
+    fused.sort(key=lambda x: x[3], reverse=True)
+    return fused
+
+
+# ---------------------------------------------------------------------------
 # Searcher
 # ---------------------------------------------------------------------------
 
 class Searcher:
-    """Load VectorStore + metadata once; answer many search queries.
+    """Load VectorStore + BM25 + metadata once; answer many search queries.
+
+    ``search()`` runs dense FAISS retrieval and BM25 retrieval independently,
+    then fuses the two ranked lists with weighted Reciprocal Rank Fusion.
 
     Args:
         settings: application settings (defaults to get_settings()).
@@ -61,6 +123,7 @@ class Searcher:
         self.settings = settings or get_settings()
         self._embedder = embedder
         self._store: VectorStore | None = None
+        self._bm25: BM25Retriever | None = None
         self._meta: pd.DataFrame | None = None
 
     @property
@@ -82,34 +145,56 @@ class Searcher:
         store = VectorStore(self.settings)
         store.load(expected_dim=self.embedder.dimension)
 
-        self._meta = pd.read_parquet(meta_path)
+        meta = pd.read_parquet(meta_path)
+
+        bm25_path = bm25_corpus_path(self.settings.faiss_index_path)
+        if bm25_path.exists():
+            bm25 = BM25Retriever.load(bm25_path)
+        else:
+            log.warning("BM25 corpus not found, rebuilding from metadata", path=str(bm25_path))
+            bm25 = BM25Retriever.from_dataframe(meta)
+
         self._store = store
-        log.info("searcher ready", chunks=len(self._meta), ntotal=store.ntotal)
+        self._meta = meta
+        self._bm25 = bm25
+        log.info("searcher ready", chunks=len(meta), ntotal=store.ntotal)
 
     def search(self, query: str, k: int | None = None) -> list[SearchResult]:
-        """Embed the query, search FAISS, join to metadata, return ranked results.
+        """Embed query, retrieve from dense + BM25, fuse with RRF, return top-k.
 
         Args:
             query: natural-language search query.
             k:     number of results; defaults to settings.top_k_return.
 
         Returns:
-            List of SearchResult sorted by score descending.
+            List of SearchResult sorted by fused_score descending.
         """
         self._ensure_loaded()
 
         k = k if k is not None else self.settings.top_k_return
+        retrieve_n = self.settings.top_k_retrieve
 
-        query_vec: np.ndarray = self.embedder.encode([query])[0]  # (dim,)
-        hits = self._store.search(query_vec, k)  # [(row_idx, score), ...]
+        query_vec: np.ndarray = self.embedder.encode([query])[0]
+        dense_hits = self._store.search(query_vec, retrieve_n)
+        bm25_hits = self._bm25.search(query, retrieve_n)
+
+        fused = _reciprocal_rank_fusion(
+            dense_hits,
+            bm25_hits,
+            dense_weight=self.settings.dense_weight,
+            bm25_weight=self.settings.bm25_weight,
+        )
 
         results: list[SearchResult] = []
-        for rank, (row_idx, score) in enumerate(hits, start=1):
+        for rank, (row_idx, d_score, b_score, f_score) in enumerate(fused[:k], start=1):
             row = self._meta.iloc[row_idx]
             results.append(
                 SearchResult(
                     rank=rank,
-                    score=round(float(score), 4),
+                    score=round(f_score, 6),
+                    dense_score=round(float(d_score), 4),
+                    bm25_score=round(float(b_score), 4),
+                    fused_score=round(f_score, 6),
                     file_path=str(row["file_path"]),
                     symbol_name=str(row["symbol_name"]),
                     symbol_type=str(row["symbol_type"]),
@@ -136,18 +221,18 @@ def _make_snippet(code: str, max_lines: int) -> str:
         if len(kept) >= max_lines:
             break
         kept.append(line)
-    # Strip trailing blank lines
     while kept and not kept[-1].strip():
         kept.pop()
     return "\n".join(kept)
 
 
-def format_results(results: list[SearchResult], query: str = "") -> str:
+def format_results(results: list[SearchResult], query: str = "", verbose: bool = False) -> str:
     """Render a list of SearchResult as a terminal-friendly string.
 
-    Each hit shows:
-        #rank  score  file_path:start_line  (symbol_name · language)
-        snippet (indented)
+    Args:
+        results: ranked results from Searcher.search().
+        query:   original query string (shown in header when non-empty).
+        verbose: when True, also show dense_score and bm25_score per result.
     """
     if not results:
         return "No results found."
@@ -157,8 +242,15 @@ def format_results(results: list[SearchResult], query: str = "") -> str:
         lines.append(f"Results for: {query!r}\n")
 
     for r in results:
+        if verbose:
+            score_str = (
+                f"score={r.fused_score:.4f}  "
+                f"dense={r.dense_score:.4f}  bm25={r.bm25_score:.4f}"
+            )
+        else:
+            score_str = f"score={r.score:.4f}"
         header = (
-            f"#{r.rank}  score={r.score:.4f}  "
+            f"#{r.rank}  {score_str}  "
             f"{r.file_path}:{r.start_line}  "
             f"({r.symbol_name} · {r.language})"
         )

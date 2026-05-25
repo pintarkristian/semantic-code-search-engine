@@ -294,6 +294,11 @@ class IndexingPipeline:
         store.build(vectors)
         store.save()
 
+        # 4. Build + persist BM25 corpus (import here to avoid module-level cycle)
+        from semcode.search._bm25 import BM25Retriever, bm25_corpus_path  # noqa: PLC0415
+        bm25 = BM25Retriever.from_dataframe(df)
+        bm25.save(bm25_corpus_path(self.settings.faiss_index_path))
+
         log.info(
             "pipeline: complete",
             chunks=len(df),
