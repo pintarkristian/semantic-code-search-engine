@@ -10,7 +10,7 @@ import pytest
 
 from semcode.config import Settings
 from semcode.embed import Embedder, chunk_to_text
-from semcode.index import VectorStore
+from semcode.index import IndexingPipeline, VectorStore
 from semcode.search import SearchResult, Searcher, _make_snippet, format_results
 from tests.conftest import MOCK_DIM, MockSentenceTransformer
 
@@ -256,3 +256,68 @@ class TestFormatResults:
         output = format_results(results)
         assert "#1" in output
         assert "#2" in output
+
+
+# ---------------------------------------------------------------------------
+# Slow integration tests — real model, real fixture repo
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(scope="session")
+def real_searcher(tmp_path_factory: pytest.TempPathFactory) -> Searcher:
+    """Build a real FAISS index from the fixture repo using the real embedding model.
+
+    Session-scoped so the model is loaded and the index is built only once
+    across all slow tests in this session.
+    """
+    data_dir = tmp_path_factory.mktemp("real_index")
+    settings = Settings(
+        data_dir=data_dir,
+        faiss_index_path=data_dir / "index.faiss",
+        metadata_path=data_dir / "metadata.parquet",
+    )
+    pipeline = IndexingPipeline(settings)
+    pipeline.run(FIXTURE_REPO)
+    return Searcher(settings, embedder=pipeline.embedder)
+
+
+def _top_names(searcher: Searcher, query: str, k: int = 5) -> list[str]:
+    return [r.symbol_name for r in searcher.search(query, k=k)]
+
+
+@pytest.mark.slow
+class TestSemanticRanking:
+    """Regression checks: intent-style queries must surface the right symbols."""
+
+    def test_validate_token_top3(self, real_searcher: Searcher) -> None:
+        names = _top_names(real_searcher, "validate JWT token", k=5)
+        assert any("validate" in n.lower() or "token" in n.lower() for n in names[:3])
+
+    def test_hash_password_top3(self, real_searcher: Searcher) -> None:
+        names = _top_names(real_searcher, "hash a password string", k=5)
+        assert any("hash" in n.lower() or "password" in n.lower() for n in names[:3])
+
+    def test_format_date_top3(self, real_searcher: Searcher) -> None:
+        names = _top_names(real_searcher, "format a date as ISO date string", k=5)
+        assert any("date" in n.lower() or "format" in n.lower() for n in names[:3])
+
+    def test_nonempty_string_check_top3(self, real_searcher: Searcher) -> None:
+        names = _top_names(real_searcher, "check whether a string is non-empty", k=5)
+        assert any("string" in n.lower() or "empty" in n.lower() for n in names[:3])
+
+    def test_normalise_query_top5(self, real_searcher: Searcher) -> None:
+        names = _top_names(real_searcher, "normalise and clean a search query string", k=5)
+        assert any("query" in n.lower() or "normalise" in n.lower() or "normalize" in n.lower() for n in names[:5])
+
+    def test_build_url_with_params_top5(self, real_searcher: Searcher) -> None:
+        names = _top_names(real_searcher, "build a URL with query parameters", k=5)
+        assert any("build" in n.lower() or "query" in n.lower() or "param" in n.lower() for n in names[:5])
+
+    def test_results_are_ranked(self, real_searcher: Searcher) -> None:
+        results = real_searcher.search("extract user id from token", k=5)
+        scores = [r.score for r in results]
+        assert scores == sorted(scores, reverse=True)
+
+    def test_all_fixture_languages_present(self, real_searcher: Searcher) -> None:
+        results = real_searcher.search("function", k=16)
+        langs = {r.language for r in results}
+        assert langs >= {"python", "javascript", "typescript"}
