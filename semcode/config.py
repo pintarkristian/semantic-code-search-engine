@@ -1,22 +1,45 @@
-"""Application settings (placeholder)."""
+"""Centralised, typed application settings backed by pydantic-settings."""
 
-from pydantic_settings import BaseSettings
+from __future__ import annotations
+
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    # --- server ---
     app_name: str = "semcode"
     debug: bool = False
     host: str = "0.0.0.0"
     port: int = 8000
+    log_level: str = "INFO"  # DEBUG | INFO | WARNING | ERROR
+    log_format: str = "pretty"  # "pretty" (dev) | "json" (prod)
 
-    model_name: str = "microsoft/codebert-base"
-    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    # --- embedding model ---
+    embedding_model_name: str = "flax-sentence-embeddings/st-codesearch-distilroberta-base"
+    embedding_device: str = "cpu"  # "cpu" | "cuda" — override to "cuda" if GPU available
+    batch_size: int = 64
+    max_chunk_tokens: int = 512
 
-    index_path: str = "data/index.faiss"
-    data_path: str = "data/"
+    # --- paths ---
+    data_dir: Path = Path("data")
+    faiss_index_path: Path = Path("data/index.faiss")
+    metadata_path: Path = Path("data/metadata.parquet")
+    reranker_model_path: Path = Path("data/reranker")
 
-    class Config:
-        env_file = ".env"
+    # --- retrieval ---
+    top_k_retrieve: int = 50  # candidates fetched from each source before fusion
+    top_k_return: int = 10    # results returned to the caller
+
+    # --- fusion weights (must sum to 1.0 for RRF scaling to be meaningful) ---
+    dense_weight: float = 0.7
+    bm25_weight: float = 0.3
 
 
-settings = Settings()
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    return Settings()
