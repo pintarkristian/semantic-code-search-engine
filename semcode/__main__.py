@@ -32,10 +32,16 @@ def index(
     if not repo_path.exists():
         typer.echo(f"[semcode] error: {repo_path} does not exist", err=True)
         raise typer.Exit(1)
-    log.info("starting ingestion", repo_path=str(repo_path), rebuild=rebuild)
-    from semcode.ingest import ingest as _ingest
-    df = _ingest(repo_path)
-    typer.echo(f"[semcode] ingested {len(df)} chunks from {repo_path}")
+    log.info("starting pipeline", repo_path=str(repo_path), rebuild=rebuild)
+    from semcode.index import IndexingPipeline
+    s = get_settings()
+    pipeline = IndexingPipeline(s)
+    df, vectors = pipeline.run(repo_path)
+    typer.echo(
+        f"[semcode] indexed {len(df)} chunks  "
+        f"dim={vectors.shape[1] if len(df) else 0}  "
+        f"-> {s.faiss_index_path}"
+    )
 
 
 @app.command()
@@ -47,8 +53,16 @@ def search(
     """Search the current index using a natural-language query."""
     _setup()
     log = get_logger(__name__)
-    log.info("search stub called", query=query, k=k, use_reranker=use_reranker)
-    typer.echo(f"[semcode] search: '{query}' (k={k}) — not yet implemented (M5)")
+    log.info("search called", query=query, k=k, use_reranker=use_reranker)
+    from semcode.search import Searcher, format_results
+    s = get_settings()
+    searcher = Searcher(s)
+    try:
+        results = searcher.search(query, k=k)
+    except FileNotFoundError as exc:
+        typer.echo(f"[semcode] error: {exc}", err=True)
+        raise typer.Exit(1)
+    typer.echo(format_results(results, query=query))
 
 
 @app.command()

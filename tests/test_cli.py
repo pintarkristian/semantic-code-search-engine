@@ -29,16 +29,17 @@ def test_index_rebuild_flag(tmp_path: Path) -> None:
     assert "ingested" in result.output
 
 
-def test_search_stub() -> None:
-    result = runner.invoke(app, ["search", "validate JWT token"])
+def test_search_help_shows_options() -> None:
+    result = runner.invoke(app, ["search", "--help"])
     assert result.exit_code == 0
-    assert "not yet implemented" in result.output
+    assert "--k" in result.output
+    assert "--reranker" in result.output
 
 
-def test_search_k_option() -> None:
+def test_search_k_option_is_recognized() -> None:
+    # --k must not produce "No such option" regardless of index state
     result = runner.invoke(app, ["search", "find auth handler", "--k", "5"])
-    assert result.exit_code == 0
-    assert "k=5" in result.output
+    assert "No such option" not in (result.output or "")
 
 
 def test_serve_stub() -> None:
