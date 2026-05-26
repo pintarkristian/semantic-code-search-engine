@@ -58,7 +58,7 @@ def search(
     s = get_settings()
     searcher = Searcher(s)
     try:
-        results = searcher.search(query, k=k)
+        results = searcher.search(query, k=k, use_reranker=use_reranker)
     except FileNotFoundError as exc:
         typer.echo(f"[semcode] error: {exc}", err=True)
         raise typer.Exit(1)
@@ -83,13 +83,51 @@ def serve(
 @app.command(name="train-reranker")
 def train_reranker(
     labels_path: Path = typer.Argument(..., help="Path to labels JSON file."),
-    epochs: int = typer.Option(10, "--epochs", "-e", help="Training epochs."),
+    dataset_path: Path = typer.Option(
+        Path("data/reranker_dataset.parquet"),
+        "--dataset",
+        help="Where to write/read the generated feature parquet.",
+    ),
+    epochs: int = typer.Option(20, "--epochs", "-e", help="Training epochs."),
+    negatives_per_query: int = typer.Option(
+        8,
+        "--negatives-per-query",
+        help="Number of fused non-relevant candidates to keep per query.",
+    ),
 ) -> None:
     """Build training data and train the TensorFlow re-ranker model."""
     _setup()
     log = get_logger(__name__)
-    log.info("train-reranker stub called", labels_path=str(labels_path), epochs=epochs)
-    typer.echo(f"[semcode] train-reranker epochs={epochs} — not yet implemented (M7)")
+    if not labels_path.exists():
+        typer.echo(f"[semcode] error: {labels_path} does not exist", err=True)
+        raise typer.Exit(1)
+
+    from semcode.rerank import build_reranker_dataset, load_labels, train_reranker_model
+
+    labels = load_labels(labels_path)
+    if not labels:
+        typer.echo("[semcode] train-reranker skipped: no labels supplied; not yet implemented for empty labels.")
+        return
+
+    s = get_settings()
+    try:
+        dataset = build_reranker_dataset(
+            labels_path,
+            dataset_path,
+            s,
+            negatives_per_query=negatives_per_query,
+        )
+        metrics = train_reranker_model(dataset_path, s, epochs=epochs)
+    except Exception as exc:
+        log.error("train-reranker failed", error=str(exc))
+        typer.echo(f"[semcode] error: {exc}", err=True)
+        raise typer.Exit(1)
+
+    latest = {name: values[-1] for name, values in metrics.items() if values}
+    typer.echo(
+        f"[semcode] trained reranker rows={len(dataset)} "
+        f"model={s.reranker_model_path} metrics={latest}"
+    )
 
 
 if __name__ == "__main__":

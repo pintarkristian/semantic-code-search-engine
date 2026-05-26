@@ -5,6 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,10 +35,18 @@ class Settings(BaseSettings):
     # --- retrieval ---
     top_k_retrieve: int = 50  # candidates fetched from each source before fusion
     top_k_return: int = 10    # results returned to the caller
+    use_reranker: bool = True  # optional final learned re-ranking stage
 
     # --- fusion weights (must sum to 1.0 for RRF scaling to be meaningful) ---
     dense_weight: float = 0.7
     bm25_weight: float = 0.3
+
+    @field_validator("debug", mode="before")
+    @classmethod
+    def _parse_debug(cls, value: object) -> object:
+        if isinstance(value, str) and value.lower() in {"release", "prod", "production"}:
+            return False
+        return value
 
 
 @lru_cache(maxsize=1)
