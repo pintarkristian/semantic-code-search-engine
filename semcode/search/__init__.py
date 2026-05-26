@@ -40,9 +40,11 @@ class SearchResult(BaseModel):
 
     rank: int
     score: float           # == fused_score (backward-compat alias)
+    rerank_score: float | None = None
     dense_score: float = 0.0
     bm25_score: float = 0.0
     fused_score: float = 0.0
+    chunk_id: str = ""
     file_path: str
     symbol_name: str
     symbol_type: str
@@ -125,6 +127,7 @@ class Searcher:
         self._store: VectorStore | None = None
         self._bm25: BM25Retriever | None = None
         self._meta: pd.DataFrame | None = None
+        self._reranker = None
 
     @property
     def embedder(self) -> Embedder:
@@ -159,19 +162,10 @@ class Searcher:
         self._bm25 = bm25
         log.info("searcher ready", chunks=len(meta), ntotal=store.ntotal)
 
-    def search(self, query: str, k: int | None = None) -> list[SearchResult]:
-        """Embed query, retrieve from dense + BM25, fuse with RRF, return top-k.
-
-        Args:
-            query: natural-language search query.
-            k:     number of results; defaults to settings.top_k_return.
-
-        Returns:
-            List of SearchResult sorted by fused_score descending.
-        """
+    def candidates(self, query: str, k: int | None = None) -> pd.DataFrame:
+        """Return hybrid candidates with scores and metadata, sorted by fused score."""
         self._ensure_loaded()
 
-        k = k if k is not None else self.settings.top_k_return
         retrieve_n = self.settings.top_k_retrieve
 
         query_vec: np.ndarray = self.embedder.encode([query])[0]
@@ -184,17 +178,73 @@ class Searcher:
             dense_weight=self.settings.dense_weight,
             bm25_weight=self.settings.bm25_weight,
         )
+        if k is not None:
+            fused = fused[:k]
+
+        rows: list[dict] = []
+        for row_idx, d_score, b_score, f_score in fused:
+            row = self._meta.iloc[row_idx].to_dict()
+            row.update(
+                {
+                    "row_idx": int(row_idx),
+                    "dense_score": float(d_score),
+                    "bm25_score": float(b_score),
+                    "fused_score": float(f_score),
+                }
+            )
+            rows.append(row)
+        return pd.DataFrame(rows)
+
+    def _maybe_rerank(self, query: str, candidates: pd.DataFrame, use_reranker: bool) -> pd.DataFrame:
+        if not use_reranker or candidates.empty:
+            return candidates
+        if self._reranker is None:
+            from semcode.rerank import ReRanker  # noqa: PLC0415
+
+            self._reranker = ReRanker(self.settings)
+        if not self._reranker.available:
+            return candidates
+        return self._reranker.rerank(query, candidates)
+
+    def search(
+        self,
+        query: str,
+        k: int | None = None,
+        *,
+        use_reranker: bool | None = None,
+    ) -> list[SearchResult]:
+        """Embed query, retrieve from dense + BM25, fuse with RRF, return top-k.
+
+        Args:
+            query: natural-language search query.
+            k:     number of results; defaults to settings.top_k_return.
+
+        Returns:
+            List of SearchResult sorted by fused_score descending.
+        """
+        k = k if k is not None else self.settings.top_k_return
+        reranker_enabled = self.settings.use_reranker if use_reranker is None else use_reranker
+        candidates = self.candidates(query)
+        ranked = self._maybe_rerank(query, candidates, reranker_enabled)
 
         results: list[SearchResult] = []
-        for rank, (row_idx, d_score, b_score, f_score) in enumerate(fused[:k], start=1):
-            row = self._meta.iloc[row_idx]
+        for rank, (_, row) in enumerate(ranked.head(k).iterrows(), start=1):
+            f_score = float(row["fused_score"])
+            rerank_score = row.get("rerank_score")
+            result_score = float(rerank_score) if rerank_score is not None and pd.notna(rerank_score) else f_score
             results.append(
                 SearchResult(
                     rank=rank,
-                    score=round(f_score, 6),
-                    dense_score=round(float(d_score), 4),
-                    bm25_score=round(float(b_score), 4),
+                    score=round(result_score, 6),
+                    rerank_score=(
+                        round(float(rerank_score), 6)
+                        if rerank_score is not None and pd.notna(rerank_score)
+                        else None
+                    ),
+                    dense_score=round(float(row["dense_score"]), 4),
+                    bm25_score=round(float(row["bm25_score"]), 4),
                     fused_score=round(f_score, 6),
+                    chunk_id=str(row["chunk_id"]),
                     file_path=str(row["file_path"]),
                     symbol_name=str(row["symbol_name"]),
                     symbol_type=str(row["symbol_type"]),

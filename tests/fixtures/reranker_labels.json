@@ -1,0 +1,8 @@
+{
+  "validate JWT token": ["c60b612fe69ee2fb"],
+  "hash a password string": ["476df9140ed269e7"],
+  "format a date as ISO date string": ["63fde3cd4bb90c4d"],
+  "check whether a string is non-empty": ["fcb25ac62d7cbe49"],
+  "normalise and clean a search query string": ["79a5f46efe69293a"],
+  "build a URL with query parameters": ["1ddece331c7e2585"]
+}
