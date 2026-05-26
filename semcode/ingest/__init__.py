@@ -15,6 +15,7 @@ import pandas as pd
 import pathspec
 
 from semcode.config import Settings, get_settings
+from semcode.embed import content_hash_for_row
 from semcode.ingest._ast import EXT_TO_LANG, AstChunk, extract_chunks
 from semcode.logging import get_logger
 
@@ -34,6 +35,7 @@ _SKIP_DIRS: frozenset[str] = frozenset({
 _PARQUET_COLUMNS = [
     "chunk_id", "file_path", "language", "symbol_name",
     "symbol_type", "start_line", "end_line", "code", "docstring",
+    "content_hash",
 ]
 
 # Sliding-window defaults (lines); override via subclass if needed
@@ -135,7 +137,7 @@ class CodeIngestor:
 
     def _record(self, rel_str: str, language: str, chunk: AstChunk) -> dict:
         code = chunk.text.decode("utf-8", errors="replace")
-        return {
+        record = {
             "chunk_id": self._make_chunk_id(
                 rel_str, chunk.symbol_name, chunk.start_line, chunk.end_line
             ),
@@ -148,6 +150,11 @@ class CodeIngestor:
             "code": code,
             "docstring": chunk.docstring,
         }
+        record["content_hash"] = content_hash_for_row(
+            record,
+            max_chars=self.settings.max_chunk_tokens * 4,
+        )
+        return record
 
     def _sliding_window(
         self, source_bytes: bytes, rel_str: str, language: str
@@ -162,7 +169,7 @@ class CodeIngestor:
             start_line = start + 1  # 1-indexed
             end_line = end
             symbol_name = f"lines_{start_line}_{end_line}"
-            records.append({
+            record = {
                 "chunk_id": self._make_chunk_id(rel_str, symbol_name, start_line, end_line),
                 "file_path": rel_str,
                 "language": language,
@@ -172,7 +179,12 @@ class CodeIngestor:
                 "end_line": end_line,
                 "code": "\n".join(lines[start:end]),
                 "docstring": "",
-            })
+            }
+            record["content_hash"] = content_hash_for_row(
+                record,
+                max_chars=self.settings.max_chunk_tokens * 4,
+            )
+            records.append(record)
             if end == len(lines):
                 break
             start += self.window_stride
@@ -182,8 +194,8 @@ class CodeIngestor:
     # Public API
     # ------------------------------------------------------------------
 
-    def ingest(self) -> pd.DataFrame:
-        """Walk the repo, extract chunks, persist to parquet, return DataFrame."""
+    def ingest(self, *, persist: bool = True) -> pd.DataFrame:
+        """Walk the repo, extract chunks, optionally persist to parquet, return DataFrame."""
         records: list[dict] = []
         files = list(self._iter_source_files())
         log.info("ingesting repo", repo=str(self.repo_path), file_count=len(files))
@@ -195,10 +207,11 @@ class CodeIngestor:
 
         df = pd.DataFrame(records, columns=_PARQUET_COLUMNS)
 
-        out = self.settings.metadata_path
-        out.parent.mkdir(parents=True, exist_ok=True)
-        df.to_parquet(out, index=False)
-        log.info("wrote metadata", path=str(out), rows=len(df))
+        if persist:
+            out = self.settings.metadata_path
+            out.parent.mkdir(parents=True, exist_ok=True)
+            df.to_parquet(out, index=False)
+            log.info("wrote metadata", path=str(out), rows=len(df))
 
         return df
 
