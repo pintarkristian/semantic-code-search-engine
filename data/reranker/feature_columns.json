@@ -1,0 +1,14 @@
+[
+  "dense_score",
+  "bm25_score",
+  "fused_score",
+  "symbol_token_overlap",
+  "query_code_len_ratio",
+  "query_tokens_in_docstring",
+  "lang_go",
+  "lang_java",
+  "lang_javascript",
+  "lang_python",
+  "lang_typescript",
+  "lang_other"
+]
