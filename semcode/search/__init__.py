@@ -127,6 +127,7 @@ class Searcher:
         self._store: VectorStore | None = None
         self._bm25: BM25Retriever | None = None
         self._meta: pd.DataFrame | None = None
+        self._doc_id_to_pos: dict[int, int] = {}
         self._reranker = None
 
     @property
@@ -159,6 +160,13 @@ class Searcher:
 
         self._store = store
         self._meta = meta
+        if "vector_id" in meta.columns:
+            self._doc_id_to_pos = {
+                int(doc_id): int(pos)
+                for pos, doc_id in enumerate(meta["vector_id"].tolist())
+            }
+        else:
+            self._doc_id_to_pos = {int(pos): int(pos) for pos in range(len(meta))}
         self._bm25 = bm25
         log.info("searcher ready", chunks=len(meta), ntotal=store.ntotal)
 
@@ -182,11 +190,15 @@ class Searcher:
             fused = fused[:k]
 
         rows: list[dict] = []
-        for row_idx, d_score, b_score, f_score in fused:
-            row = self._meta.iloc[row_idx].to_dict()
+        for doc_id, d_score, b_score, f_score in fused:
+            row_pos = self._doc_id_to_pos.get(int(doc_id))
+            if row_pos is None:
+                continue
+            row = self._meta.iloc[row_pos].to_dict()
             row.update(
                 {
-                    "row_idx": int(row_idx),
+                    "row_idx": int(row_pos),
+                    "doc_id": int(doc_id),
                     "dense_score": float(d_score),
                     "bm25_score": float(b_score),
                     "fused_score": float(f_score),

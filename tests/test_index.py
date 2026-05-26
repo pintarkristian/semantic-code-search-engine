@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -44,6 +46,37 @@ def _settings(tmp_path: Path, model_name: str = "test-model") -> Settings:
 
 def _mock_embedder(settings: Settings) -> Embedder:
     return Embedder(settings, _model=MockSentenceTransformer())
+
+
+class CountingSentenceTransformer(MockSentenceTransformer):
+    def __init__(self) -> None:
+        self.encoded_chunks = 0
+
+    def encode(
+        self,
+        inputs: list[str] | str,
+        batch_size: int = 32,
+        normalize_embeddings: bool = False,
+        convert_to_numpy: bool = True,
+        show_progress_bar: bool = False,
+        **kwargs: Any,
+    ) -> np.ndarray:
+        texts = inputs if isinstance(inputs, list) else [inputs]
+        self.encoded_chunks += len(texts)
+        return super().encode(
+            inputs,
+            batch_size=batch_size,
+            normalize_embeddings=normalize_embeddings,
+            convert_to_numpy=convert_to_numpy,
+            show_progress_bar=show_progress_bar,
+            **kwargs,
+        )
+
+
+def _copy_fixture_repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "sample_repo"
+    shutil.copytree(FIXTURE_REPO, repo)
+    return repo
 
 
 # ---------------------------------------------------------------------------
@@ -394,3 +427,65 @@ def test_pipeline_empty_repo(tmp_path: Path) -> None:
     assert s.metadata_path.exists()
     assert s.faiss_index_path.exists()
     assert s.faiss_index_path.with_suffix(".json").exists()
+
+
+def test_pipeline_unchanged_reindex_embeds_zero_chunks(tmp_path: Path) -> None:
+    repo = _copy_fixture_repo(tmp_path)
+    s = _settings(tmp_path)
+    model = CountingSentenceTransformer()
+    pipeline = IndexingPipeline(s, embedder=Embedder(s, _model=model))
+
+    df, _ = pipeline.run(repo)
+    first_count = model.encoded_chunks
+    assert first_count == len(df)
+
+    df2, _ = pipeline.run(repo)
+
+    assert len(df2) == len(df)
+    assert model.encoded_chunks == first_count
+    assert pipeline.last_stats["chunks_embedded"] == 0
+    assert pipeline.last_stats["cache_hits"] == len(df2)
+
+
+def test_pipeline_single_function_edit_reembeds_only_changed_chunk(tmp_path: Path) -> None:
+    repo = _copy_fixture_repo(tmp_path)
+    s = _settings(tmp_path)
+    model = CountingSentenceTransformer()
+    pipeline = IndexingPipeline(s, embedder=Embedder(s, _model=model))
+
+    pipeline.run(repo)
+    first_count = model.encoded_chunks
+    auth_path = repo / "auth.py"
+    auth_path.write_text(
+        auth_path.read_text(newline="").replace(
+            "return len(segments) == 3",
+            "return len(segments) == 3 and segments[0] != ''",
+        ),
+        newline="",
+    )
+
+    pipeline.run(repo)
+
+    assert model.encoded_chunks == first_count + 1
+    assert pipeline.last_stats["updated"] == 1
+    assert pipeline.last_stats["chunks_embedded"] == 1
+
+
+def test_pipeline_deleted_file_removed_from_search_results(tmp_path: Path) -> None:
+    from semcode.search import Searcher
+
+    repo = _copy_fixture_repo(tmp_path)
+    s = _settings(tmp_path)
+    embedder = Embedder(s, _model=MockSentenceTransformer())
+    pipeline = IndexingPipeline(s, embedder=embedder)
+    pipeline.run(repo)
+
+    before = Searcher(s, embedder=embedder).search("format date ISO string", k=10, use_reranker=False)
+    assert any(result.file_path == "utils.js" for result in before)
+
+    (repo / "utils.js").unlink()
+    pipeline.run(repo)
+
+    after = Searcher(s, embedder=embedder).search("format date ISO string", k=10, use_reranker=False)
+    assert all(result.file_path != "utils.js" for result in after)
+    assert pipeline.last_stats["removed"] > 0

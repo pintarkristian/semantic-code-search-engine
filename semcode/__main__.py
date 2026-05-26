@@ -24,7 +24,11 @@ def _setup() -> None:
 @app.command()
 def index(
     repo_path: Path = typer.Argument(..., help="Path to the repository to index."),
-    rebuild: bool = typer.Option(False, "--rebuild", help="Force a full rebuild of the index."),
+    rebuild: bool = typer.Option(
+        False,
+        "--rebuild/--no-rebuild",
+        help="Force a full rebuild instead of the default incremental update.",
+    ),
 ) -> None:
     """Walk a repository, parse source files, embed chunks, and build the search index."""
     _setup()
@@ -36,10 +40,15 @@ def index(
     from semcode.index import IndexingPipeline
     s = get_settings()
     pipeline = IndexingPipeline(s)
-    df, vectors = pipeline.run(repo_path)
+    df, vectors = pipeline.run(repo_path, rebuild=rebuild)
+    stats = pipeline.last_stats
     typer.echo(
-        f"[semcode] indexed {len(df)} chunks  "
+        f"[semcode] ingested and indexed {len(df)} chunks  "
         f"dim={vectors.shape[1] if len(df) else 0}  "
+        f"embedded={stats.get('chunks_embedded', 0)}  "
+        f"cache_hits={stats.get('cache_hits', 0)}  "
+        f"embedding_ms={stats.get('embedding_elapsed_ms', 0)}  "
+        f"elapsed_ms={stats.get('elapsed_ms', 0)}  "
         f"-> {s.faiss_index_path}"
     )
 

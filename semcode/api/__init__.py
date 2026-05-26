@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from semcode.config import Settings, get_settings
+from semcode.embed import embedding_cache_path
 from semcode.index import IndexingPipeline
 from semcode.logging import get_logger
 from semcode.search import SearchResult, Searcher
@@ -288,9 +289,8 @@ def _run_index_job(app: FastAPI, job_id: str, repo_path: Path, rebuild: bool) ->
         jobs[job_id]["started_at"] = time.time()
 
     try:
-        if rebuild:
-            _delete_artifacts(settings)
-        df, vectors = IndexingPipeline(settings).run(repo_path)
+        pipeline = IndexingPipeline(settings)
+        df, vectors = pipeline.run(repo_path, rebuild=rebuild)
         app.state.searcher = Searcher(settings)
         app.state.index_loaded = _load_searcher(app)
         with jobs_lock:
@@ -342,6 +342,7 @@ def _artifact_paths(settings: Settings) -> list[Path]:
         settings.faiss_index_path,
         settings.faiss_index_path.with_suffix(".json"),
         bm25_corpus_path(settings.faiss_index_path),
+        embedding_cache_path(settings),
     ]
 
 

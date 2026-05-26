@@ -8,6 +8,9 @@ Public surface:
 
 from __future__ import annotations
 
+import hashlib
+import pickle
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -20,6 +23,13 @@ if TYPE_CHECKING:
     import pandas as pd
 
 log = get_logger(__name__)
+
+_EMBEDDING_CACHE_FILENAME = "embedding_cache.pkl"
+
+
+def embedding_cache_path(settings: Settings) -> Path:
+    """Return the persistent embedding cache path for settings."""
+    return settings.data_dir / _EMBEDDING_CACHE_FILENAME
 
 # ---------------------------------------------------------------------------
 # Text preparation
@@ -48,6 +58,16 @@ def chunk_to_text(row: Any, max_chars: int = 2048) -> str:
 
     text = "\n".join(parts)
     return text[:max_chars]
+
+
+def content_hash_for_text(text: str) -> str:
+    """Return a stable SHA-256 content hash for an embedding input string."""
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def content_hash_for_row(row: Any, max_chars: int = 2048) -> str:
+    """Return the content hash for the exact text representation embedded."""
+    return content_hash_for_text(chunk_to_text(row, max_chars=max_chars))
 
 
 # ---------------------------------------------------------------------------
@@ -138,6 +158,73 @@ class Embedder:
 
 
 # ---------------------------------------------------------------------------
+# Persistent embedding cache
+# ---------------------------------------------------------------------------
+
+class EmbeddingCache:
+    """Persistent content-hash keyed embedding cache under settings.data_dir."""
+
+    def __init__(self, settings: Settings, *, model_name: str, dimension: int) -> None:
+        self.settings = settings
+        self.model_name = model_name
+        self.dimension = int(dimension)
+        self.path = embedding_cache_path(settings)
+        self._vectors: dict[str, np.ndarray] = {}
+        self._load()
+
+    def _load(self) -> None:
+        if not self.path.exists():
+            return
+        try:
+            with open(self.path, "rb") as f:
+                payload = pickle.load(f)
+        except (OSError, pickle.PickleError, EOFError, AttributeError, ValueError) as exc:
+            log.warning("ignoring unreadable embedding cache", path=str(self.path), error=str(exc))
+            return
+
+        if payload.get("model_name") != self.model_name or int(payload.get("dimension", -1)) != self.dimension:
+            log.info(
+                "ignoring embedding cache for different model or dimension",
+                path=str(self.path),
+                cached_model=payload.get("model_name"),
+                cached_dimension=payload.get("dimension"),
+                model=self.model_name,
+                dimension=self.dimension,
+            )
+            return
+
+        vectors = payload.get("vectors", {})
+        if isinstance(vectors, dict):
+            self._vectors = {
+                str(key): np.asarray(value, dtype=np.float32)
+                for key, value in vectors.items()
+            }
+            log.info("loaded embedding cache", path=str(self.path), entries=len(self._vectors))
+
+    def save(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "model_name": self.model_name,
+            "dimension": self.dimension,
+            "vectors": self._vectors,
+        }
+        with open(self.path, "wb") as f:
+            pickle.dump(payload, f)
+        log.info("saved embedding cache", path=str(self.path), entries=len(self._vectors))
+
+    def clear(self) -> None:
+        self._vectors.clear()
+        if self.path.exists():
+            self.path.unlink()
+
+    def get(self, content_hash: str) -> np.ndarray | None:
+        return self._vectors.get(content_hash)
+
+    def set(self, content_hash: str, vector: np.ndarray) -> None:
+        self._vectors[content_hash] = np.asarray(vector, dtype=np.float32)
+
+
+# ---------------------------------------------------------------------------
 # DataFrame helper
 # ---------------------------------------------------------------------------
 
@@ -160,3 +247,78 @@ def embed_dataframe(
     max_chars = emb.settings.max_chunk_tokens * 4
     texts = [chunk_to_text(row, max_chars=max_chars) for _, row in df.iterrows()]
     return emb.encode(texts)
+
+
+def ensure_content_hashes(
+    df: pd.DataFrame,
+    settings: Settings,
+) -> pd.DataFrame:
+    """Return a copy of df with a content_hash column for embedding inputs."""
+    out = df.copy()
+    max_chars = settings.max_chunk_tokens * 4
+    out["content_hash"] = [
+        content_hash_for_row(row, max_chars=max_chars)
+        for _, row in out.iterrows()
+    ]
+    return out
+
+
+def embed_dataframe_cached(
+    df: pd.DataFrame,
+    *,
+    embedder: Embedder | None = None,
+    settings: Settings | None = None,
+    reset_cache: bool = False,
+) -> tuple[np.ndarray, dict[str, int | float]]:
+    """Encode a DataFrame using the persistent content-hash embedding cache."""
+    import time
+
+    emb = embedder or Embedder(settings)
+    cfg = emb.settings
+    dimension = emb.dimension
+    cache = EmbeddingCache(
+        cfg,
+        model_name=cfg.embedding_model_name,
+        dimension=dimension,
+    )
+    if reset_cache:
+        cache.clear()
+
+    df_hashed = ensure_content_hashes(df, cfg)
+    hashes = [str(value) for value in df_hashed["content_hash"].tolist()]
+
+    start = time.perf_counter()
+    missing_text_by_hash: dict[str, str] = {}
+    max_chars = cfg.max_chunk_tokens * 4
+    for content_hash, (_, row) in zip(hashes, df_hashed.iterrows()):
+        if cache.get(content_hash) is None and content_hash not in missing_text_by_hash:
+            missing_text_by_hash[content_hash] = chunk_to_text(row, max_chars=max_chars)
+
+    missing_hashes = list(missing_text_by_hash)
+    if missing_hashes:
+        new_vectors = emb.encode([missing_text_by_hash[h] for h in missing_hashes])
+        for content_hash, vector in zip(missing_hashes, new_vectors):
+            cache.set(content_hash, vector)
+
+    if hashes:
+        vectors = np.stack([cache.get(content_hash) for content_hash in hashes]).astype(np.float32)
+    else:
+        vectors = np.zeros((0, dimension), dtype=np.float32)
+
+    cache.save()
+    elapsed_ms = round((time.perf_counter() - start) * 1000, 3)
+    stats: dict[str, int | float] = {
+        "chunks": len(hashes),
+        "chunks_embedded": len(missing_hashes),
+        "cache_hits": len(hashes) - sum(1 for h in hashes if h in missing_hashes),
+        "cache_entries": len(cache._vectors),
+        "elapsed_ms": elapsed_ms,
+    }
+    log.info(
+        "embedding cache stats",
+        chunks=stats["chunks"],
+        chunks_embedded=stats["chunks_embedded"],
+        cache_hits=stats["cache_hits"],
+        elapsed_ms=stats["elapsed_ms"],
+    )
+    return vectors, stats

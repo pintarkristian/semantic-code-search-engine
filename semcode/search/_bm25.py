@@ -64,9 +64,20 @@ class BM25Retriever:
         corpus: list of token-lists, one per document.
     """
 
-    def __init__(self, corpus: list[list[str]]) -> None:
+    def __init__(self, corpus: list[list[str]], *, doc_ids: list[int] | None = None) -> None:
         self._corpus = corpus
+        self._doc_ids = doc_ids or list(range(len(corpus)))
         self._bm25: BM25Okapi | None = BM25Okapi(corpus) if corpus else None
+
+    @property
+    def corpus(self) -> list[list[str]]:
+        """Tokenized documents in metadata row order."""
+        return self._corpus
+
+    @property
+    def doc_ids(self) -> list[int]:
+        """Document IDs aligned to the tokenized corpus."""
+        return self._doc_ids
 
     # ------------------------------------------------------------------
     # Search
@@ -86,7 +97,7 @@ class BM25Retriever:
         top_k = min(k, len(scores))
         indices = np.argsort(scores)[::-1][:top_k]
         return [
-            (int(i), float(scores[i]))
+            (int(self._doc_ids[int(i)]), float(scores[i]))
             for i in indices
             if scores[i] > 0.0
         ]
@@ -105,7 +116,46 @@ class BM25Retriever:
         from semcode.embed import chunk_to_text  # local import avoids top-level cycle
 
         corpus = [tokenize(chunk_to_text(row)) for _, row in df.iterrows()]
-        return cls(corpus)
+        doc_ids = (
+            [int(value) for value in df["vector_id"].tolist()]
+            if "vector_id" in df.columns
+            else list(range(len(corpus)))
+        )
+        return cls(corpus, doc_ids=doc_ids)
+
+    @classmethod
+    def from_incremental_dataframe(
+        cls,
+        df: pd.DataFrame,
+        *,
+        previous_df: pd.DataFrame | None = None,
+        previous_corpus: list[list[str]] | None = None,
+    ) -> BM25Retriever:
+        """Build a corpus reusing unchanged token lists from a previous corpus."""
+        from semcode.embed import chunk_to_text  # local import avoids top-level cycle
+
+        previous_by_id: dict[str, tuple[str, list[str]]] = {}
+        if previous_df is not None and previous_corpus is not None:
+            for (_, row), tokens in zip(previous_df.iterrows(), previous_corpus):
+                previous_by_id[str(row["chunk_id"])] = (
+                    str(row.get("content_hash", "")),
+                    tokens,
+                )
+
+        corpus: list[list[str]] = []
+        doc_ids: list[int] = []
+        reused = 0
+        for _, row in df.iterrows():
+            doc_ids.append(int(row.get("vector_id", len(doc_ids))))
+            previous = previous_by_id.get(str(row["chunk_id"]))
+            if previous is not None and previous[0] == str(row.get("content_hash", "")):
+                corpus.append(previous[1])
+                reused += 1
+            else:
+                corpus.append(tokenize(chunk_to_text(row)))
+
+        log.info("built BM25 corpus", docs=len(corpus), reused=reused)
+        return cls(corpus, doc_ids=doc_ids)
 
     # ------------------------------------------------------------------
     # Persist
@@ -115,13 +165,19 @@ class BM25Retriever:
         """Write the tokenized corpus to disk as a pickle file."""
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as f:
-            pickle.dump(self._corpus, f)
+            pickle.dump({"corpus": self._corpus, "doc_ids": self._doc_ids}, f)
         log.info("saved BM25 corpus", path=str(path), docs=len(self._corpus))
 
     @classmethod
     def load(cls, path: Path) -> BM25Retriever:
         """Load a previously saved tokenized corpus and reconstruct BM25Okapi."""
         with open(path, "rb") as f:
-            corpus: list[list[str]] = pickle.load(f)
+            payload = pickle.load(f)
+        if isinstance(payload, dict):
+            corpus: list[list[str]] = payload["corpus"]
+            doc_ids = [int(value) for value in payload.get("doc_ids", range(len(corpus)))]
+        else:
+            corpus = payload
+            doc_ids = list(range(len(corpus)))
         log.info("loaded BM25 corpus", path=str(path), docs=len(corpus))
-        return cls(corpus)
+        return cls(corpus, doc_ids=doc_ids)
