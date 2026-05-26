@@ -76,8 +76,11 @@ def serve(
     log = get_logger(__name__)
     effective_host = host or s.host
     effective_port = port or s.port
-    log.info("serve stub called", host=effective_host, port=effective_port)
-    typer.echo(f"[semcode] serve {effective_host}:{effective_port} — not yet implemented (M8)")
+    log.info("starting API server", host=effective_host, port=effective_port)
+    typer.echo(f"[semcode] serving API at http://{effective_host}:{effective_port}")
+    import uvicorn
+
+    uvicorn.run("semcode.api:create_app", host=effective_host, port=effective_port, factory=True)
 
 
 @app.command(name="train-reranker")

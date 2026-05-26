@@ -84,6 +84,7 @@ def train_reranker_model(
         raise ValueError("Reranker training needs at least one positive and one negative label.")
 
     tf = _import_tf()
+    tf.keras.utils.set_random_seed(42)
     model = build_model(input_dim=len(FEATURE_COLUMNS))
     norm = model.get_layer("feature_normalization")
     norm.adapt(x_train)
@@ -104,6 +105,7 @@ def train_reranker_model(
         epochs=epochs,
         batch_size=batch_size,
         callbacks=callbacks,
+        class_weight=_class_weight(y_train),
         verbose=0,
     )
 
@@ -120,6 +122,16 @@ def train_reranker_model(
     metrics = {key: [float(value) for value in values] for key, values in history.history.items()}
     log.info("trained reranker", path=str(model_path), metrics={k: v[-1] for k, v in metrics.items()})
     return metrics
+
+
+def _class_weight(y: np.ndarray) -> dict[int, float]:
+    positives = float(np.sum(y == 1.0))
+    negatives = float(np.sum(y == 0.0))
+    total = max(positives + negatives, 1.0)
+    return {
+        0: total / max(2.0 * negatives, 1.0),
+        1: total / max(2.0 * positives, 1.0),
+    }
 
 
 class ReRanker:
