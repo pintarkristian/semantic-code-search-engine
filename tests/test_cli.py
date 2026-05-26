@@ -42,17 +42,26 @@ def test_search_k_option_is_recognized() -> None:
     assert "No such option" not in (result.output or "")
 
 
-def test_serve_stub() -> None:
+def test_serve_starts_uvicorn(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+    monkeypatch.setattr("uvicorn.run", lambda *args, **kwargs: calls.append((args, kwargs)))
     result = runner.invoke(app, ["serve"])
     assert result.exit_code == 0
-    assert "not yet implemented" in result.output
+    assert "serving API" in result.output
+    assert calls
+    assert calls[0][0] == ("semcode.api:create_app",)
+    assert calls[0][1]["factory"] is True
 
 
-def test_serve_host_port_override() -> None:
+def test_serve_host_port_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+    monkeypatch.setattr("uvicorn.run", lambda *args, **kwargs: calls.append((args, kwargs)))
     result = runner.invoke(app, ["serve", "--host", "127.0.0.1", "--port", "9000"])
     assert result.exit_code == 0
     assert "127.0.0.1" in result.output
     assert "9000" in result.output
+    assert calls[0][1]["host"] == "127.0.0.1"
+    assert calls[0][1]["port"] == 9000
 
 
 def test_train_reranker_stub(tmp_path: Path) -> None:

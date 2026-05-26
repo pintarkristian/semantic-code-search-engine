@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     # --- retrieval ---
     top_k_retrieve: int = 50  # candidates fetched from each source before fusion
     top_k_return: int = 10    # results returned to the caller
-    use_reranker: bool = True  # optional final learned re-ranking stage
+    use_reranker: bool = False  # optional final learned re-ranking stage
 
     # --- fusion weights (must sum to 1.0 for RRF scaling to be meaningful) ---
     dense_weight: float = 0.7
