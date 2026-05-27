@@ -79,9 +79,11 @@ async def test_health_without_index(tmp_path: Path) -> None:
 
     assert response.status_code == 200
     body = response.json()
-    assert body["status"] == "ok"
+    assert body["status"] == "up"
+    assert body["ready"] is False
     assert body["index_loaded"] is False
     assert body["model_name"] == "test-model"
+    assert body["missing_artifacts"]
     assert response.headers["x-request-id"]
 
 
@@ -93,6 +95,33 @@ async def test_health_with_index(tmp_path: Path) -> None:
 
     assert response.status_code == 200
     assert response.json()["index_loaded"] is True
+    assert response.json()["ready"] is True
+
+
+@pytest.mark.asyncio
+async def test_version_reports_manifest_and_model(tmp_path: Path) -> None:
+    app, _ = _preindexed_app(tmp_path)
+    async with _client(app) as client:
+        response = await client.get("/version")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["app_version"]
+    assert body["model_name"] == "test-model"
+    assert body["ready"] is True
+    assert body["index_manifest"]["model_name"] == "test-model"
+
+
+@pytest.mark.asyncio
+async def test_metrics_endpoint_exposes_prometheus_metrics(tmp_path: Path) -> None:
+    app, _ = _preindexed_app(tmp_path)
+    async with _client(app) as client:
+        await client.get("/health")
+        response = await client.get("/metrics")
+
+    assert response.status_code == 200
+    assert "semcode_http_requests_total" in response.text
+    assert "semcode_index_chunks" in response.text
 
 
 @pytest.mark.asyncio
@@ -136,6 +165,30 @@ async def test_bad_search_input_returns_422(tmp_path: Path) -> None:
 
     assert response.status_code == 422
     assert response.json()["error"]["message"] == "validation_error"
+
+
+@pytest.mark.asyncio
+async def test_search_without_index_returns_friendly_503(tmp_path: Path) -> None:
+    app = create_app(_settings(tmp_path))
+    async with _client(app) as client:
+        response = await client.get("/search", params={"q": "validate token", "k": 5})
+
+    assert response.status_code == 503
+    assert "No search index is loaded" in response.json()["error"]["message"]
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_returns_429(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    settings.rate_limit_requests = 1
+    settings.rate_limit_window_seconds = 60
+    app = create_app(settings)
+    async with _client(app) as client:
+        first = await client.get("/health")
+        second = await client.get("/health")
+
+    assert first.status_code == 200
+    assert second.status_code == 429
 
 
 @pytest.mark.asyncio

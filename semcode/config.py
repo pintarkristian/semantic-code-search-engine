@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     port: int = 8000
     log_level: str = "INFO"  # DEBUG | INFO | WARNING | ERROR
     log_format: str = "pretty"  # "pretty" (dev) | "json" (prod)
+    request_timeout_seconds: float = 30.0
+    rate_limit_requests: int = 120
+    rate_limit_window_seconds: int = 60
 
     # --- embedding model ---
     embedding_model_name: str = "flax-sentence-embeddings/st-codesearch-distilroberta-base"
@@ -35,6 +38,8 @@ class Settings(BaseSettings):
     # --- retrieval ---
     top_k_retrieve: int = 50  # candidates fetched from each source before fusion
     top_k_return: int = 10  # results returned to the caller
+    max_query_length: int = 512
+    max_search_k: int = 100
     use_reranker: bool = False  # optional final learned re-ranking stage
 
     # --- fusion weights (must sum to 1.0 for RRF scaling to be meaningful) ---
