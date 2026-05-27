@@ -1,4 +1,4 @@
-.PHONY: install lint format test run docker-build docker-up
+.PHONY: install lint format test run docker-build docker-up docker-down
 
 install:
 	pip install -e ".[dev]" || pip install -r requirements-dev.txt
@@ -22,3 +22,6 @@ docker-build:
 
 docker-up:
 	docker compose up --build
+
+docker-down:
+	docker compose down
