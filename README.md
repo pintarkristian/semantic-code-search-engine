@@ -37,6 +37,24 @@ invented by someone who left three years ago.
 
 The system is divided into two pipelines that share the same embedding model.
 
+```mermaid
+flowchart LR
+    Repo[Repository] --> Ingest[Tree-sitter ingest]
+    Ingest --> Meta[(metadata.parquet)]
+    Ingest --> Cache[(embedding cache)]
+    Cache --> Embed[PyTorch embeddings]
+    Embed --> Faiss[(FAISS)]
+    Meta --> BM25[(BM25)]
+    Query[Intent query] --> API[FastAPI]
+    API --> Embed
+    API --> Faiss
+    API --> BM25
+    Faiss --> RRF[Reciprocal Rank Fusion]
+    BM25 --> RRF
+    RRF --> Rerank[Optional TensorFlow reranker]
+    Rerank --> Results[Ranked results]
+```
+
 ```
                       ┌──────────────────────────────┐
    target repo  ──────▶  ingest (tree-sitter AST)     │
@@ -197,9 +215,47 @@ experiments, start the optional profile with `docker compose --profile qdrant up
 
 ---
 
-## Planned API Endpoints
+## Demo Media
 
-These endpoints are designed and documented here; they will be implemented in M8.
+Screenshot/GIF placeholder: `docs/assets/search-demo.gif`
+
+Capture target: index the fixture repository, search for `extract user id from token`, and show the
+API result containing `extract_user_id`, `TokenValidator`, and `validate_token` in the top ranks.
+
+---
+
+## Operations
+
+```bash
+curl http://localhost:8000/health
+curl http://localhost:8000/version
+curl http://localhost:8000/metrics
+python examples/queries.py --base-url http://localhost:8000
+```
+
+`/health` distinguishes liveness from readiness. A fresh service reports `status=up` but
+`ready=false` until index artifacts are available. `/metrics` exposes Prometheus request counters,
+latency histograms, search latency, and index chunk count.
+
+---
+
+## Performance Snapshot
+
+Measured on the fixture repository with the deterministic test embedder during M9:
+
+| Run | Chunks | Embedded | Cache hits | Embedding time | Total pipeline time |
+|---|---:|---:|---:|---:|---:|
+| First index | 16 | 16 | 0 | 3.078 ms | 47.579 ms |
+| No-change re-index | 16 | 0 | 16 | 1.753 ms | 89.034 ms |
+
+On the tiny fixture, total time is dominated by ingest and artifact persistence. The meaningful
+signal is that unchanged re-indexing embeds zero chunks and reaches a 100% cache hit rate.
+
+---
+
+## API Endpoints
+
+Core endpoints exposed by the FastAPI service:
 
 | Method | Path | Description |
 |---|---|---|
@@ -208,8 +264,8 @@ These endpoints are designed and documented here; they will be implemented in M8
 | `GET` | `/index/status/{job_id}` | Poll indexing job status and progress. |
 | `GET` | `/search` | Search by natural-language query. Params: `q`, `k` (default 10), `use_reranker` (default true). |
 | `GET` | `/stats` | Index statistics: chunk count, language breakdown, model name, index built-at timestamp. |
-| `GET` | `/metrics` | Prometheus metrics: request counts, latency histograms, index size. (M12) |
-| `GET` | `/version` | App version, model name, and index manifest. (M12) |
+| `GET` | `/metrics` | Prometheus metrics: request counts, latency histograms, search latency, index size. |
+| `GET` | `/version` | App version, model name, readiness, and index manifest. |
 | `DELETE` | `/index` | Clear all persisted index artifacts. |
 
 ### Example search response (planned)
