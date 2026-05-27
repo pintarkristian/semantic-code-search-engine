@@ -53,12 +53,14 @@ _LANG_CONFIG: dict[str, tuple] = {
     ),
     "java": (
         tsjava.language,
-        frozenset({
-            "class_declaration",
-            "interface_declaration",
-            "method_declaration",
-            "constructor_declaration",
-        }),
+        frozenset(
+            {
+                "class_declaration",
+                "interface_declaration",
+                "method_declaration",
+                "constructor_declaration",
+            }
+        ),
     ),
 }
 
@@ -88,6 +90,7 @@ _COMMENT_PREFIXES: dict[str, tuple[str, ...]] = {
 # Singleton parsers
 # ---------------------------------------------------------------------------
 
+
 @lru_cache(maxsize=len(_LANG_CONFIG))
 def _get_parser(language: str) -> Parser:
     lang_fn, _ = _LANG_CONFIG[language]
@@ -103,11 +106,15 @@ def _get_chunk_types(language: str) -> frozenset[str]:
 # Name / type extraction
 # ---------------------------------------------------------------------------
 
+
 def _symbol_name(node: Node) -> str:
     """Return the identifier name for a chunk node."""
     for child in node.children:
         if child.type in (
-            "identifier", "field_identifier", "property_identifier", "type_identifier"
+            "identifier",
+            "field_identifier",
+            "property_identifier",
+            "type_identifier",
         ):
             if child.text:
                 return child.text.decode("utf-8", errors="replace")
@@ -121,6 +128,7 @@ def _symbol_type(node: Node) -> str:
 # ---------------------------------------------------------------------------
 # Docstring / leading-comment extraction
 # ---------------------------------------------------------------------------
+
 
 def _python_docstring(node: Node) -> str:
     """Return the first string literal inside a Python function/class body."""
@@ -154,11 +162,12 @@ def _leading_comment(source_lines: list[str], start_line: int, language: str) ->
 # Public API
 # ---------------------------------------------------------------------------
 
+
 class AstChunk(NamedTuple):
     symbol_name: str
     symbol_type: str
-    start_line: int   # 1-indexed
-    end_line: int     # 1-indexed
+    start_line: int  # 1-indexed
+    end_line: int  # 1-indexed
     text: bytes
     docstring: str
 
@@ -201,14 +210,16 @@ def _walk(
         else:
             doc = _leading_comment(source_lines, start, language)
 
-        out.append(AstChunk(
-            symbol_name=name,
-            symbol_type=sym_type,
-            start_line=start,
-            end_line=end,
-            text=node.text,
-            docstring=doc,
-        ))
+        out.append(
+            AstChunk(
+                symbol_name=name,
+                symbol_type=sym_type,
+                start_line=start,
+                end_line=end,
+                text=node.text,
+                docstring=doc,
+            )
+        )
         # Always recurse so nested symbols (methods inside classes) are captured too.
 
     for child in node.children:

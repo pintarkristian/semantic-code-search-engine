@@ -31,9 +31,11 @@ def embedding_cache_path(settings: Settings) -> Path:
     """Return the persistent embedding cache path for settings."""
     return settings.data_dir / _EMBEDDING_CACHE_FILENAME
 
+
 # ---------------------------------------------------------------------------
 # Text preparation
 # ---------------------------------------------------------------------------
+
 
 def chunk_to_text(row: Any, max_chars: int = 2048) -> str:
     """Combine symbol_name + docstring + code into a single embedding input string.
@@ -44,11 +46,15 @@ def chunk_to_text(row: Any, max_chars: int = 2048) -> str:
     """
     parts: list[str] = []
 
-    name = str(row.get("symbol_name", "") if hasattr(row, "get") else getattr(row, "symbol_name", "")).strip()
+    name = str(
+        row.get("symbol_name", "") if hasattr(row, "get") else getattr(row, "symbol_name", "")
+    ).strip()
     if name and name != "<anonymous>":
         parts.append(f"symbol: {name}")
 
-    doc = str(row.get("docstring", "") if hasattr(row, "get") else getattr(row, "docstring", "")).strip()
+    doc = str(
+        row.get("docstring", "") if hasattr(row, "get") else getattr(row, "docstring", "")
+    ).strip()
     if doc:
         parts.append(doc)
 
@@ -73,6 +79,7 @@ def content_hash_for_row(row: Any, max_chars: int = 2048) -> str:
 # ---------------------------------------------------------------------------
 # Embedder
 # ---------------------------------------------------------------------------
+
 
 class Embedder:
     """Lazy singleton wrapper around a SentenceTransformer model.
@@ -114,9 +121,7 @@ class Embedder:
                 model=self.settings.embedding_model_name,
                 device=device,
             )
-            self._model = SentenceTransformer(
-                self.settings.embedding_model_name, device=device
-            )
+            self._model = SentenceTransformer(self.settings.embedding_model_name, device=device)
         return self._model
 
     # ------------------------------------------------------------------
@@ -161,6 +166,7 @@ class Embedder:
 # Persistent embedding cache
 # ---------------------------------------------------------------------------
 
+
 class EmbeddingCache:
     """Persistent content-hash keyed embedding cache under settings.data_dir."""
 
@@ -182,7 +188,10 @@ class EmbeddingCache:
             log.warning("ignoring unreadable embedding cache", path=str(self.path), error=str(exc))
             return
 
-        if payload.get("model_name") != self.model_name or int(payload.get("dimension", -1)) != self.dimension:
+        if (
+            payload.get("model_name") != self.model_name
+            or int(payload.get("dimension", -1)) != self.dimension
+        ):
             log.info(
                 "ignoring embedding cache for different model or dimension",
                 path=str(self.path),
@@ -196,8 +205,7 @@ class EmbeddingCache:
         vectors = payload.get("vectors", {})
         if isinstance(vectors, dict):
             self._vectors = {
-                str(key): np.asarray(value, dtype=np.float32)
-                for key, value in vectors.items()
+                str(key): np.asarray(value, dtype=np.float32) for key, value in vectors.items()
             }
             log.info("loaded embedding cache", path=str(self.path), entries=len(self._vectors))
 
@@ -228,6 +236,7 @@ class EmbeddingCache:
 # DataFrame helper
 # ---------------------------------------------------------------------------
 
+
 def embed_dataframe(
     df: pd.DataFrame,
     embedder: Embedder | None = None,
@@ -257,8 +266,7 @@ def ensure_content_hashes(
     out = df.copy()
     max_chars = settings.max_chunk_tokens * 4
     out["content_hash"] = [
-        content_hash_for_row(row, max_chars=max_chars)
-        for _, row in out.iterrows()
+        content_hash_for_row(row, max_chars=max_chars) for _, row in out.iterrows()
     ]
     return out
 
@@ -301,7 +309,13 @@ def embed_dataframe_cached(
             cache.set(content_hash, vector)
 
     if hashes:
-        vectors = np.stack([cache.get(content_hash) for content_hash in hashes]).astype(np.float32)
+        cached_vectors = []
+        for content_hash in hashes:
+            cached = cache.get(content_hash)
+            if cached is None:
+                raise RuntimeError(f"Missing cached vector for content hash {content_hash}")
+            cached_vectors.append(cached)
+        vectors = np.stack(cached_vectors).astype(np.float32)
     else:
         vectors = np.zeros((0, dimension), dtype=np.float32)
 

@@ -4,16 +4,21 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import pytest
 
 from semcode.config import Settings
 from semcode.embed import Embedder, chunk_to_text
 from semcode.index import IndexingPipeline, VectorStore
-from semcode.search import SearchResult, Searcher, _make_snippet, _reciprocal_rank_fusion, format_results
+from semcode.search import (
+    Searcher,
+    SearchResult,
+    _make_snippet,
+    _reciprocal_rank_fusion,
+    format_results,
+)
 from semcode.search._bm25 import BM25Retriever, bm25_corpus_path, tokenize
-from tests.conftest import MOCK_DIM, MockSentenceTransformer
+from tests.conftest import MockSentenceTransformer
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -51,7 +56,7 @@ def _build_index(tmp_path: Path, n: int = 12) -> tuple[Settings, Embedder, pd.Da
             "symbol_type": "function_definition",
             "start_line": i * 10 + 1,
             "end_line": i * 10 + 9,
-            "code": f"def func_{i}(x):\n    \"\"\"Does thing {i}.\"\"\"\n    return x + {i}",
+            "code": f'def func_{i}(x):\n    """Does thing {i}."""\n    return x + {i}',
             "docstring": f"Does thing {i}.",
         }
         for i in range(n)
@@ -76,6 +81,7 @@ def _build_index(tmp_path: Path, n: int = 12) -> tuple[Settings, Embedder, pd.Da
 # SearchResult
 # ---------------------------------------------------------------------------
 
+
 class TestSearchResult:
     def test_basic_construction(self) -> None:
         r = SearchResult(
@@ -96,8 +102,14 @@ class TestSearchResult:
 
     def test_score_is_float(self) -> None:
         r = SearchResult(
-            rank=1, score=1, file_path="f.py", symbol_name="s",
-            symbol_type="t", language="python", start_line=1, end_line=2,
+            rank=1,
+            score=1,
+            file_path="f.py",
+            symbol_name="s",
+            symbol_type="t",
+            language="python",
+            start_line=1,
+            end_line=2,
             snippet="",
         )
         assert isinstance(r.score, float)
@@ -106,6 +118,7 @@ class TestSearchResult:
 # ---------------------------------------------------------------------------
 # Snippet helper
 # ---------------------------------------------------------------------------
+
 
 class TestMakeSnippet:
     def test_limits_lines(self) -> None:
@@ -129,6 +142,7 @@ class TestMakeSnippet:
 # ---------------------------------------------------------------------------
 # Searcher
 # ---------------------------------------------------------------------------
+
 
 class TestSearcher:
     def test_raises_when_no_metadata(self, tmp_path: Path) -> None:
@@ -218,6 +232,7 @@ class TestSearcher:
 # format_results
 # ---------------------------------------------------------------------------
 
+
 class TestFormatResults:
     def _sample_results(self) -> list[SearchResult]:
         return [
@@ -276,6 +291,7 @@ class TestFormatResults:
 # Tokenize
 # ---------------------------------------------------------------------------
 
+
 class TestTokenize:
     def test_camel_case_split(self) -> None:
         tokens = tokenize("formatDate")
@@ -316,6 +332,7 @@ class TestTokenize:
 # ---------------------------------------------------------------------------
 # BM25Retriever
 # ---------------------------------------------------------------------------
+
 
 class TestBM25Retriever:
     def test_exact_token_match_scores_highest(self) -> None:
@@ -379,6 +396,7 @@ class TestBM25Retriever:
 # Reciprocal Rank Fusion
 # ---------------------------------------------------------------------------
 
+
 class TestRRF:
     def test_dense_only_preserves_dense_order(self) -> None:
         dense = [(0, 0.9), (1, 0.8), (2, 0.7)]
@@ -431,7 +449,10 @@ class TestRRF:
 # Hybrid Searcher — BM25 boost and weight extremes
 # ---------------------------------------------------------------------------
 
-def _unique_id_corpus(tmp_path: Path, dense_weight: float, bm25_weight: float) -> tuple[Settings, Embedder]:
+
+def _unique_id_corpus(
+    tmp_path: Path, dense_weight: float, bm25_weight: float
+) -> tuple[Settings, Embedder]:
     """Build an index with 10 generic functions plus one unique 'xorshift_prng' function."""
     tmp_path.mkdir(parents=True, exist_ok=True)
     settings = Settings(
@@ -461,17 +482,19 @@ def _unique_id_corpus(tmp_path: Path, dense_weight: float, bm25_weight: float) -
         }
         for i in range(10)
     ]
-    rows.append({
-        "chunk_id": "xorshiftunique00",
-        "file_path": "src/rng.py",
-        "language": "python",
-        "symbol_name": "xorshift_prng",
-        "symbol_type": "function_definition",
-        "start_line": 100,
-        "end_line": 107,
-        "code": "def xorshift_prng(seed):\n    return seed ^ (seed << 13)",
-        "docstring": "xorshift pseudo random number generator",
-    })
+    rows.append(
+        {
+            "chunk_id": "xorshiftunique00",
+            "file_path": "src/rng.py",
+            "language": "python",
+            "symbol_name": "xorshift_prng",
+            "symbol_type": "function_definition",
+            "start_line": 100,
+            "end_line": 107,
+            "code": "def xorshift_prng(seed):\n    return seed ^ (seed << 13)",
+            "docstring": "xorshift pseudo random number generator",
+        }
+    )
     df = pd.DataFrame(rows)
     df.to_parquet(settings.metadata_path, index=False)
 
@@ -539,6 +562,7 @@ class TestHybridSearcher:
 # Slow integration tests — real model, real fixture repo
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="session")
 def real_searcher(tmp_path_factory: pytest.TempPathFactory) -> Searcher:
     """Build a real FAISS index from the fixture repo using the real embedding model.
@@ -583,11 +607,16 @@ class TestSemanticRanking:
 
     def test_normalise_query_top5(self, real_searcher: Searcher) -> None:
         names = _top_names(real_searcher, "normalise and clean a search query string", k=5)
-        assert any("query" in n.lower() or "normalise" in n.lower() or "normalize" in n.lower() for n in names[:5])
+        assert any(
+            "query" in n.lower() or "normalise" in n.lower() or "normalize" in n.lower()
+            for n in names[:5]
+        )
 
     def test_build_url_with_params_top5(self, real_searcher: Searcher) -> None:
         names = _top_names(real_searcher, "build a URL with query parameters", k=5)
-        assert any("build" in n.lower() or "query" in n.lower() or "param" in n.lower() for n in names[:5])
+        assert any(
+            "build" in n.lower() or "query" in n.lower() or "param" in n.lower() for n in names[:5]
+        )
 
     def test_results_are_ranked(self, real_searcher: Searcher) -> None:
         results = real_searcher.search("extract user id from token", k=5)

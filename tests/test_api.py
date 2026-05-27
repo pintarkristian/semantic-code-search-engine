@@ -32,6 +32,21 @@ def _settings(tmp_path: Path) -> Settings:
     )
 
 
+def _bm25_settings(tmp_path: Path) -> Settings:
+    return Settings(
+        embedding_model_name="test-model",
+        data_dir=tmp_path,
+        faiss_index_path=tmp_path / "index.faiss",
+        metadata_path=tmp_path / "metadata.parquet",
+        reranker_model_path=tmp_path / "reranker",
+        batch_size=8,
+        top_k_retrieve=16,
+        top_k_return=5,
+        dense_weight=0.0,
+        bm25_weight=1.0,
+    )
+
+
 @asynccontextmanager
 async def _client(app) -> AsyncIterator[httpx.AsyncClient]:  # type: ignore[no-untyped-def]
     async with app.router.lifespan_context(app):
@@ -42,6 +57,14 @@ async def _client(app) -> AsyncIterator[httpx.AsyncClient]:  # type: ignore[no-u
 
 def _preindexed_app(tmp_path: Path):
     settings = _settings(tmp_path)
+    embedder = Embedder(settings, _model=MockSentenceTransformer())
+    IndexingPipeline(settings, embedder=embedder).run(FIXTURE_REPO)
+    searcher = Searcher(settings, embedder=embedder)
+    return create_app(settings, searcher=searcher), settings
+
+
+def _preindexed_bm25_app(tmp_path: Path):
+    settings = _bm25_settings(tmp_path)
     embedder = Embedder(settings, _model=MockSentenceTransformer())
     IndexingPipeline(settings, embedder=embedder).run(FIXTURE_REPO)
     searcher = Searcher(settings, embedder=embedder)
@@ -83,8 +106,26 @@ async def test_search_returns_ranked_results_against_fixture(tmp_path: Path) -> 
     assert body["query"] == "validate JWT token"
     assert body["latency_ms"] >= 0.0
     assert 1 <= len(body["results"]) <= 5
-    assert [result["rank"] for result in body["results"]] == list(range(1, len(body["results"]) + 1))
+    assert [result["rank"] for result in body["results"]] == list(
+        range(1, len(body["results"]) + 1)
+    )
     assert any("validate" in result["symbol_name"].lower() for result in body["results"])
+
+
+@pytest.mark.asyncio
+async def test_e2e_index_fixture_then_query_api_ranks_expected_symbols(tmp_path: Path) -> None:
+    app, _ = _preindexed_bm25_app(tmp_path)
+    async with _client(app) as client:
+        response = await client.get("/search", params={"q": "extract user id token", "k": 5})
+
+    assert response.status_code == 200
+    symbols = [result["symbol_name"] for result in response.json()["results"]]
+    assert symbols[:4] == [
+        "extract_user_id",
+        "TokenValidator",
+        "validate_token",
+        "validate",
+    ]
 
 
 @pytest.mark.asyncio

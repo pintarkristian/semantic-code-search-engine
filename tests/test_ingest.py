@@ -40,9 +40,19 @@ def df(ingestor: CodeIngestor) -> pd.DataFrame:
 # Schema
 # ---------------------------------------------------------------------------
 
+
 def test_dataframe_columns(df: pd.DataFrame) -> None:
-    expected = {"chunk_id", "file_path", "language", "symbol_name",
-                "symbol_type", "start_line", "end_line", "code", "docstring"}
+    expected = {
+        "chunk_id",
+        "file_path",
+        "language",
+        "symbol_name",
+        "symbol_type",
+        "start_line",
+        "end_line",
+        "code",
+        "docstring",
+    }
     assert expected.issubset(set(df.columns))
 
 
@@ -62,6 +72,7 @@ def test_chunk_ids_are_hex(df: pd.DataFrame) -> None:
 # ---------------------------------------------------------------------------
 # Language detection
 # ---------------------------------------------------------------------------
+
 
 def test_python_language_detected(df: pd.DataFrame) -> None:
     assert "python" in df["language"].values
@@ -83,6 +94,7 @@ def test_file_paths_are_relative(df: pd.DataFrame) -> None:
 # ---------------------------------------------------------------------------
 # Python symbol extraction
 # ---------------------------------------------------------------------------
+
 
 def test_python_extracts_top_level_functions(df: pd.DataFrame) -> None:
     py = df[df["language"] == "python"]
@@ -140,6 +152,7 @@ def test_python_docstring_extracted(df: pd.DataFrame) -> None:
 # JavaScript symbol extraction
 # ---------------------------------------------------------------------------
 
+
 def test_js_extracts_functions(df: pd.DataFrame) -> None:
     js = df[df["language"] == "javascript"]
     names = set(js["symbol_name"])
@@ -167,6 +180,7 @@ def test_js_line_spans_valid(df: pd.DataFrame) -> None:
 # TypeScript symbol extraction
 # ---------------------------------------------------------------------------
 
+
 def test_ts_extracts_class(df: pd.DataFrame) -> None:
     ts = df[df["language"] == "typescript"]
     assert "SearchResultFormatter" in set(ts["symbol_name"])
@@ -186,6 +200,7 @@ def test_ts_extracts_methods(df: pd.DataFrame) -> None:
 # Parquet persistence
 # ---------------------------------------------------------------------------
 
+
 def test_parquet_written(tmp_path: Path) -> None:
     s = _settings(tmp_path)
     CodeIngestor(FIXTURE_REPO, s).ingest()
@@ -203,6 +218,7 @@ def test_parquet_round_trips(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # Edge cases — graceful failure
 # ---------------------------------------------------------------------------
+
 
 def test_empty_file_no_crash(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
@@ -252,6 +268,7 @@ def test_non_source_files_skipped(tmp_path: Path) -> None:
 # Skip dirs
 # ---------------------------------------------------------------------------
 
+
 def test_node_modules_skipped(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     nm = repo / "node_modules" / "pkg"
@@ -287,6 +304,7 @@ def test_venv_skipped(tmp_path: Path) -> None:
 # .gitignore support
 # ---------------------------------------------------------------------------
 
+
 def test_gitignore_respected(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -304,11 +322,12 @@ def test_gitignore_respected(tmp_path: Path) -> None:
 # Sliding-window fallback
 # ---------------------------------------------------------------------------
 
+
 def test_sliding_window_fires_when_no_ast_chunks(tmp_path: Path) -> None:
     # A Go file with no top-level functions/methods — just package + import
     repo = tmp_path / "repo"
     repo.mkdir()
-    content = "package main\n\nimport \"fmt\"\n\nvar x = 1\n"
+    content = 'package main\n\nimport "fmt"\n\nvar x = 1\n'
     (repo / "empty_go.go").write_text(content)
     df = CodeIngestor(repo, _settings(tmp_path)).ingest()
     if len(df) > 0:
@@ -331,6 +350,7 @@ def test_sliding_window_symbol_names(tmp_path: Path) -> None:
 # Convenience wrapper
 # ---------------------------------------------------------------------------
 
+
 def test_ingest_function_returns_dataframe(tmp_path: Path) -> None:
     df = ingest(FIXTURE_REPO, _settings(tmp_path))
     assert isinstance(df, pd.DataFrame)
@@ -340,6 +360,7 @@ def test_ingest_function_returns_dataframe(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # AST unit tests (language-level)
 # ---------------------------------------------------------------------------
+
 
 def test_extract_chunks_python_basic() -> None:
     src = b"def foo(x):\n    return x + 1\n"

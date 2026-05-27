@@ -24,7 +24,7 @@ def _import_tf() -> Any:
 
 
 def _split_xy(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    missing = [column for column in FEATURE_COLUMNS + ["label"] if column not in df.columns]
+    missing = [column for column in [*FEATURE_COLUMNS, "label"] if column not in df.columns]
     if missing:
         raise ValueError(f"Dataset is missing columns: {missing}")
     if df.empty:
@@ -64,7 +64,10 @@ def build_model(input_dim: int) -> Any:
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
         loss="binary_crossentropy",
-        metrics=[tf.keras.metrics.AUC(name="auc"), tf.keras.metrics.BinaryAccuracy(name="accuracy")],
+        metrics=[
+            tf.keras.metrics.AUC(name="auc"),
+            tf.keras.metrics.BinaryAccuracy(name="accuracy"),
+        ],
     )
     return model
 
@@ -120,7 +123,9 @@ def train_reranker_model(
     )
 
     metrics = {key: [float(value) for value in values] for key, values in history.history.items()}
-    log.info("trained reranker", path=str(model_path), metrics={k: v[-1] for k, v in metrics.items()})
+    log.info(
+        "trained reranker", path=str(model_path), metrics={k: v[-1] for k, v in metrics.items()}
+    )
     return metrics
 
 
@@ -162,13 +167,17 @@ class ReRanker:
 
     def score(self, query: str, candidates: pd.DataFrame) -> np.ndarray:
         """Return a score in [0, 1] for each candidate, or fused scores on fallback."""
-        fallback = candidates.get("fused_score", pd.Series([0.0] * len(candidates))).to_numpy(dtype="float32")
+        fallback = candidates.get("fused_score", pd.Series([0.0] * len(candidates))).to_numpy(
+            dtype="float32"
+        )
         if candidates.empty or not self._ensure_loaded():
             return fallback
 
         try:
             tf = _import_tf()
             features = build_features(query, candidates).to_numpy(dtype="float32")
+            if self._signature is None:
+                return fallback
             outputs = self._signature(tf.constant(features))
             tensor = next(iter(outputs.values()))
             scores = np.asarray(tensor).reshape(-1).astype("float32")
@@ -183,4 +192,6 @@ class ReRanker:
             return candidates
         ranked = candidates.copy()
         ranked["rerank_score"] = self.score(query, ranked)
-        return ranked.sort_values("rerank_score", ascending=False, kind="mergesort").reset_index(drop=True)
+        return ranked.sort_values("rerank_score", ascending=False, kind="mergesort").reset_index(
+            drop=True
+        )

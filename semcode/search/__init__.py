@@ -8,15 +8,20 @@ Public surface:
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 import pandas as pd
 from pydantic import BaseModel
 
 from semcode.config import Settings, get_settings
 from semcode.embed import Embedder
-from semcode.search._bm25 import BM25Retriever, bm25_corpus_path, tokenize
 from semcode.index import VectorStore
 from semcode.logging import get_logger
+from semcode.search._bm25 import BM25Retriever, bm25_corpus_path
+
+if TYPE_CHECKING:
+    from semcode.rerank import ReRanker
 
 log = get_logger(__name__)
 
@@ -27,6 +32,7 @@ _RRF_K: int = 60  # standard RRF smoothing constant
 # ---------------------------------------------------------------------------
 # Result model
 # ---------------------------------------------------------------------------
+
 
 class SearchResult(BaseModel):
     """One ranked search result.
@@ -39,7 +45,7 @@ class SearchResult(BaseModel):
     """
 
     rank: int
-    score: float           # == fused_score (backward-compat alias)
+    score: float  # == fused_score (backward-compat alias)
     rerank_score: float | None = None
     dense_score: float = 0.0
     bm25_score: float = 0.0
@@ -57,6 +63,7 @@ class SearchResult(BaseModel):
 # ---------------------------------------------------------------------------
 # Reciprocal Rank Fusion
 # ---------------------------------------------------------------------------
+
 
 def _reciprocal_rank_fusion(
     dense_hits: list[tuple[int, float]],
@@ -81,12 +88,10 @@ def _reciprocal_rank_fusion(
         a zero contribution from the missing source.
     """
     dense_map: dict[int, tuple[int, float]] = {
-        row_idx: (rank + 1, score)
-        for rank, (row_idx, score) in enumerate(dense_hits)
+        row_idx: (rank + 1, score) for rank, (row_idx, score) in enumerate(dense_hits)
     }
     bm25_map: dict[int, tuple[int, float]] = {
-        row_idx: (rank + 1, score)
-        for rank, (row_idx, score) in enumerate(bm25_hits)
+        row_idx: (rank + 1, score) for rank, (row_idx, score) in enumerate(bm25_hits)
     }
 
     fused: list[tuple[int, float, float, float]] = []
@@ -104,6 +109,7 @@ def _reciprocal_rank_fusion(
 # ---------------------------------------------------------------------------
 # Searcher
 # ---------------------------------------------------------------------------
+
 
 class Searcher:
     """Load VectorStore + BM25 + metadata once; answer many search queries.
@@ -128,7 +134,7 @@ class Searcher:
         self._bm25: BM25Retriever | None = None
         self._meta: pd.DataFrame | None = None
         self._doc_id_to_pos: dict[int, int] = {}
-        self._reranker = None
+        self._reranker: ReRanker | None = None
 
     @property
     def embedder(self) -> Embedder:
@@ -162,8 +168,7 @@ class Searcher:
         self._meta = meta
         if "vector_id" in meta.columns:
             self._doc_id_to_pos = {
-                int(doc_id): int(pos)
-                for pos, doc_id in enumerate(meta["vector_id"].tolist())
+                int(doc_id): int(pos) for pos, doc_id in enumerate(meta["vector_id"].tolist())
             }
         else:
             self._doc_id_to_pos = {int(pos): int(pos) for pos in range(len(meta))}
@@ -173,6 +178,8 @@ class Searcher:
     def candidates(self, query: str, k: int | None = None) -> pd.DataFrame:
         """Return hybrid candidates with scores and metadata, sorted by fused score."""
         self._ensure_loaded()
+        if self._store is None or self._bm25 is None or self._meta is None:
+            raise RuntimeError("Searcher failed to load index artifacts.")
 
         retrieve_n = self.settings.top_k_retrieve
 
@@ -207,7 +214,9 @@ class Searcher:
             rows.append(row)
         return pd.DataFrame(rows)
 
-    def _maybe_rerank(self, query: str, candidates: pd.DataFrame, use_reranker: bool) -> pd.DataFrame:
+    def _maybe_rerank(
+        self, query: str, candidates: pd.DataFrame, use_reranker: bool
+    ) -> pd.DataFrame:
         if not use_reranker or candidates.empty:
             return candidates
         if self._reranker is None:
@@ -243,7 +252,11 @@ class Searcher:
         for rank, (_, row) in enumerate(ranked.head(k).iterrows(), start=1):
             f_score = float(row["fused_score"])
             rerank_score = row.get("rerank_score")
-            result_score = float(rerank_score) if rerank_score is not None and pd.notna(rerank_score) else f_score
+            result_score = (
+                float(rerank_score)
+                if rerank_score is not None and pd.notna(rerank_score)
+                else f_score
+            )
             results.append(
                 SearchResult(
                     rank=rank,
@@ -274,6 +287,7 @@ class Searcher:
 # ---------------------------------------------------------------------------
 # Formatting
 # ---------------------------------------------------------------------------
+
 
 def _make_snippet(code: str, max_lines: int) -> str:
     """Return the first max_lines non-empty lines of code."""
@@ -306,8 +320,7 @@ def format_results(results: list[SearchResult], query: str = "", verbose: bool =
     for r in results:
         if verbose:
             score_str = (
-                f"score={r.fused_score:.4f}  "
-                f"dense={r.dense_score:.4f}  bm25={r.bm25_score:.4f}"
+                f"score={r.fused_score:.4f}  " f"dense={r.dense_score:.4f}  bm25={r.bm25_score:.4f}"
             )
         else:
             score_str = f"score={r.score:.4f}"

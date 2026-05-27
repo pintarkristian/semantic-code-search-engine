@@ -8,10 +8,10 @@ from typing import Any
 import numpy as np
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Slow-test gate
 # ---------------------------------------------------------------------------
+
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
@@ -22,9 +22,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
 
 
-def pytest_collection_modifyitems(
-    config: pytest.Config, items: list[pytest.Item]
-) -> None:
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     if not config.getoption("--slow"):
         skip = pytest.mark.skip(reason="pass --slow to run model-download tests")
         for item in items:

@@ -38,6 +38,7 @@ def index(
         raise typer.Exit(1)
     log.info("starting pipeline", repo_path=str(repo_path), rebuild=rebuild)
     from semcode.index import IndexingPipeline
+
     s = get_settings()
     pipeline = IndexingPipeline(s)
     df, vectors = pipeline.run(repo_path, rebuild=rebuild)
@@ -64,6 +65,7 @@ def search(
     log = get_logger(__name__)
     log.info("search called", query=query, k=k, use_reranker=use_reranker)
     from semcode.search import Searcher, format_results
+
     s = get_settings()
     searcher = Searcher(s)
     try:
@@ -118,7 +120,9 @@ def train_reranker(
 
     labels = load_labels(labels_path)
     if not labels:
-        typer.echo("[semcode] train-reranker skipped: no labels supplied; not yet implemented for empty labels.")
+        typer.echo(
+            "[semcode] train-reranker skipped: no labels supplied; not yet implemented for empty labels."
+        )
         return
 
     s = get_settings()

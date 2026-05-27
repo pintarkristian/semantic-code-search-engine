@@ -8,8 +8,8 @@ Public surface:
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 import pandas as pd
 import pathspec
@@ -25,16 +25,41 @@ log = get_logger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-_SKIP_DIRS: frozenset[str] = frozenset({
-    ".git", "__pycache__", "node_modules", "venv", ".venv", "env",
-    "dist", "build", ".pytest_cache", ".mypy_cache", ".ruff_cache",
-    "target", "vendor", ".idea", ".vscode", ".tox", "eggs",
-    ".eggs", "htmlcov", "site-packages",
-})
+_SKIP_DIRS: frozenset[str] = frozenset(
+    {
+        ".git",
+        "__pycache__",
+        "node_modules",
+        "venv",
+        ".venv",
+        "env",
+        "dist",
+        "build",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        "target",
+        "vendor",
+        ".idea",
+        ".vscode",
+        ".tox",
+        "eggs",
+        ".eggs",
+        "htmlcov",
+        "site-packages",
+    }
+)
 
 _PARQUET_COLUMNS = [
-    "chunk_id", "file_path", "language", "symbol_name",
-    "symbol_type", "start_line", "end_line", "code", "docstring",
+    "chunk_id",
+    "file_path",
+    "language",
+    "symbol_name",
+    "symbol_type",
+    "start_line",
+    "end_line",
+    "code",
+    "docstring",
     "content_hash",
 ]
 
@@ -46,6 +71,7 @@ _WINDOW_STRIDE: int = 25
 # ---------------------------------------------------------------------------
 # CodeIngestor
 # ---------------------------------------------------------------------------
+
 
 class CodeIngestor:
     """Walk a repository and return a pandas DataFrame of code chunks.
@@ -156,9 +182,7 @@ class CodeIngestor:
         )
         return record
 
-    def _sliding_window(
-        self, source_bytes: bytes, rel_str: str, language: str
-    ) -> list[dict]:
+    def _sliding_window(self, source_bytes: bytes, rel_str: str, language: str) -> list[dict]:
         lines = source_bytes.decode("utf-8", errors="replace").splitlines()
         if not lines:
             return []
@@ -219,6 +243,7 @@ class CodeIngestor:
 # ---------------------------------------------------------------------------
 # Convenience wrapper
 # ---------------------------------------------------------------------------
+
 
 def ingest(repo_path: Path, settings: Settings | None = None) -> pd.DataFrame:
     """Ingest a repository and return a chunk DataFrame."""
