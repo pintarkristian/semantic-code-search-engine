@@ -179,15 +179,21 @@ make run
 # → http://localhost:8000/docs
 ```
 
-### Docker (planned — M11)
+### Docker
 
 ```bash
-# Build and start
+# Build and start the API
 docker compose up --build
 
-# The API will be available at http://localhost:8000
-# The ./data directory is volume-mounted for index persistence
+# In another shell, check service health
+curl http://localhost:8000/health
+
+# Search once ./data contains an index
+curl "http://localhost:8000/search?q=validate+JWT+token&k=5"
 ```
+
+The `./data` directory is mounted into the container for index persistence. To use Qdrant for
+experiments, start the optional profile with `docker compose --profile qdrant up --build`.
 
 ---
 
