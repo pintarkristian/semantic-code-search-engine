@@ -55,6 +55,7 @@ class _MockModel:
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
     return Settings(
@@ -74,43 +75,46 @@ def embedder(settings: Settings) -> Embedder:
 
 @pytest.fixture
 def sample_df() -> pd.DataFrame:
-    return pd.DataFrame([
-        {
-            "symbol_name": "validate_token",
-            "symbol_type": "function",
-            "docstring": '"""Return True if the token is valid."""',
-            "code": "def validate_token(token: str) -> bool:\n    return bool(token)",
-            "language": "python",
-            "file_path": "auth.py",
-            "start_line": 1,
-            "end_line": 2,
-        },
-        {
-            "symbol_name": "TokenValidator",
-            "symbol_type": "class",
-            "docstring": '"""Validates bearer tokens."""',
-            "code": "class TokenValidator:\n    pass",
-            "language": "python",
-            "file_path": "auth.py",
-            "start_line": 5,
-            "end_line": 6,
-        },
-        {
-            "symbol_name": "formatDate",
-            "symbol_type": "function",
-            "docstring": "// Format a Date as ISO string",
-            "code": "function formatDate(d) { return d.toISOString(); }",
-            "language": "javascript",
-            "file_path": "utils.js",
-            "start_line": 1,
-            "end_line": 1,
-        },
-    ])
+    return pd.DataFrame(
+        [
+            {
+                "symbol_name": "validate_token",
+                "symbol_type": "function",
+                "docstring": '"""Return True if the token is valid."""',
+                "code": "def validate_token(token: str) -> bool:\n    return bool(token)",
+                "language": "python",
+                "file_path": "auth.py",
+                "start_line": 1,
+                "end_line": 2,
+            },
+            {
+                "symbol_name": "TokenValidator",
+                "symbol_type": "class",
+                "docstring": '"""Validates bearer tokens."""',
+                "code": "class TokenValidator:\n    pass",
+                "language": "python",
+                "file_path": "auth.py",
+                "start_line": 5,
+                "end_line": 6,
+            },
+            {
+                "symbol_name": "formatDate",
+                "symbol_type": "function",
+                "docstring": "// Format a Date as ISO string",
+                "code": "function formatDate(d) { return d.toISOString(); }",
+                "language": "javascript",
+                "file_path": "utils.js",
+                "start_line": 1,
+                "end_line": 1,
+            },
+        ]
+    )
 
 
 # ---------------------------------------------------------------------------
 # chunk_to_text
 # ---------------------------------------------------------------------------
+
 
 def test_chunk_to_text_includes_symbol_name() -> None:
     row = {"symbol_name": "validate_token", "docstring": "", "code": "def validate_token(): pass"}
@@ -161,6 +165,7 @@ def test_chunk_to_text_accepts_pandas_series(sample_df: pd.DataFrame) -> None:
 # Embedder — shape and dtype
 # ---------------------------------------------------------------------------
 
+
 def test_encode_output_shape(embedder: Embedder) -> None:
     texts = ["def foo(): pass", "class Bar: pass", "function baz() {}"]
     out = embedder.encode(texts)
@@ -191,6 +196,7 @@ def test_dimension_property(embedder: Embedder) -> None:
 # L2 normalisation
 # ---------------------------------------------------------------------------
 
+
 def test_vectors_are_l2_normalised(embedder: Embedder) -> None:
     texts = ["def foo(): pass", "class Bar: pass", "SELECT * FROM users"]
     out = embedder.encode(texts)
@@ -207,6 +213,7 @@ def test_single_vector_is_unit_length(embedder: Embedder) -> None:
 # ---------------------------------------------------------------------------
 # Batching consistency
 # ---------------------------------------------------------------------------
+
 
 def test_batched_equals_single_item_encoding(embedder: Embedder) -> None:
     texts = [
@@ -239,6 +246,7 @@ def test_different_texts_different_vectors(embedder: Embedder) -> None:
 # embed_dataframe
 # ---------------------------------------------------------------------------
 
+
 def test_embed_dataframe_shape(embedder: Embedder, sample_df: pd.DataFrame) -> None:
     out = embed_dataframe(sample_df, embedder=embedder)
     assert out.shape == (len(sample_df), _MOCK_DIM)
@@ -257,8 +265,15 @@ def test_embed_dataframe_vectors_normalised(embedder: Embedder, sample_df: pd.Da
 
 def test_embed_dataframe_empty(embedder: Embedder) -> None:
     empty_df = pd.DataFrame(
-        columns=["symbol_name", "docstring", "code", "language", "file_path",
-                 "start_line", "end_line"]
+        columns=[
+            "symbol_name",
+            "docstring",
+            "code",
+            "language",
+            "file_path",
+            "start_line",
+            "end_line",
+        ]
     )
     out = embed_dataframe(empty_df, embedder=embedder)
     assert out.shape[0] == 0
@@ -268,8 +283,10 @@ def test_embed_dataframe_empty(embedder: Embedder) -> None:
 # Device resolution
 # ---------------------------------------------------------------------------
 
+
 def test_cuda_falls_back_to_cpu_when_unavailable(settings: Settings) -> None:
     import torch
+
     settings_cuda = Settings(
         embedding_model_name="mock-model",
         embedding_device="cuda",
@@ -289,6 +306,7 @@ def test_cpu_device_stays_cpu(settings: Settings) -> None:
 # ---------------------------------------------------------------------------
 # Truncation
 # ---------------------------------------------------------------------------
+
 
 def test_encode_truncates_to_max_chars(settings: Settings) -> None:
     # max_chunk_tokens=128 → max_chars=512

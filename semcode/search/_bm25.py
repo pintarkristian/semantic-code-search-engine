@@ -96,11 +96,7 @@ class BM25Retriever:
         scores = self._bm25.get_scores(query_tokens)
         top_k = min(k, len(scores))
         indices = np.argsort(scores)[::-1][:top_k]
-        return [
-            (int(self._doc_ids[int(i)]), float(scores[i]))
-            for i in indices
-            if scores[i] > 0.0
-        ]
+        return [(int(self._doc_ids[int(i)]), float(scores[i])) for i in indices if scores[i] > 0.0]
 
     # ------------------------------------------------------------------
     # Build from DataFrame

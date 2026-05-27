@@ -23,7 +23,7 @@ from semcode.config import Settings, get_settings
 from semcode.embed import embedding_cache_path
 from semcode.index import IndexingPipeline
 from semcode.logging import get_logger
-from semcode.search import SearchResult, Searcher
+from semcode.search import Searcher, SearchResult
 from semcode.search._bm25 import bm25_corpus_path
 
 log = get_logger(__name__)

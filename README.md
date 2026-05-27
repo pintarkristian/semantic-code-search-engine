@@ -2,7 +2,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.11-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![CI](https://img.shields.io/badge/CI-pending-lightgrey)
+[![CI](https://github.com/your-org/semcode/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/semcode/actions/workflows/ci.yml)
 ![Status](https://img.shields.io/badge/status-in%20development-orange)
 
 > **Search your codebase by what you mean, not what you typed.**

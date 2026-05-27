@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import pandas as pd
 import pytest
 
 from semcode.config import Settings
@@ -83,6 +82,7 @@ def _copy_fixture_repo(tmp_path: Path) -> Path:
 # VectorStore — build
 # ---------------------------------------------------------------------------
 
+
 def test_build_flat_index(tmp_path: Path) -> None:
     vecs = _unit_vectors(50)
     store = VectorStore(_settings(tmp_path))
@@ -129,6 +129,7 @@ def test_build_rejects_1d_array(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # VectorStore — search
 # ---------------------------------------------------------------------------
+
 
 def test_nearest_neighbour_is_self(tmp_path: Path) -> None:
     """A vector's nearest neighbour in the index must be itself."""
@@ -204,6 +205,7 @@ def test_search_empty_index_returns_empty(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # VectorStore — save / load round-trip
 # ---------------------------------------------------------------------------
+
 
 def test_save_creates_index_file(tmp_path: Path) -> None:
     vecs = _unit_vectors(10)
@@ -282,6 +284,7 @@ def test_roundtrip_ivf_preserves_results(tmp_path: Path) -> None:
 # VectorStore — manifest validation
 # ---------------------------------------------------------------------------
 
+
 def test_load_missing_index_raises(tmp_path: Path) -> None:
     store = VectorStore(_settings(tmp_path))
     with pytest.raises(FileNotFoundError):
@@ -347,6 +350,7 @@ def test_save_before_build_raises(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # IndexingPipeline
 # ---------------------------------------------------------------------------
+
 
 def test_pipeline_produces_parquet(tmp_path: Path) -> None:
     s = _settings(tmp_path)
@@ -480,12 +484,16 @@ def test_pipeline_deleted_file_removed_from_search_results(tmp_path: Path) -> No
     pipeline = IndexingPipeline(s, embedder=embedder)
     pipeline.run(repo)
 
-    before = Searcher(s, embedder=embedder).search("format date ISO string", k=10, use_reranker=False)
+    before = Searcher(s, embedder=embedder).search(
+        "format date ISO string", k=10, use_reranker=False
+    )
     assert any(result.file_path == "utils.js" for result in before)
 
     (repo / "utils.js").unlink()
     pipeline.run(repo)
 
-    after = Searcher(s, embedder=embedder).search("format date ISO string", k=10, use_reranker=False)
+    after = Searcher(s, embedder=embedder).search(
+        "format date ISO string", k=10, use_reranker=False
+    )
     assert all(result.file_path != "utils.js" for result in after)
     assert pipeline.last_stats["removed"] > 0

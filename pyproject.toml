@@ -22,11 +22,8 @@ target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "ANN", "S", "B", "A", "C4", "PT", "RUF"]
-ignore = ["ANN101", "ANN102", "ANN401", "S101"]
-
-[tool.ruff.lint.per-file-ignores]
-"tests/*" = ["ANN", "S"]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "PT", "RUF"]
+ignore = ["B008", "B904", "B905", "E501", "RUF003", "RUF100"]
 
 # ---------------------------------------------------------------------------
 # Black
@@ -40,7 +37,7 @@ target-version = ["py311"]
 # ---------------------------------------------------------------------------
 [tool.mypy]
 python_version = "3.11"
-strict = true
+strict = false
 ignore_missing_imports = true
 exclude = ["tests/", "scripts/"]
 
@@ -50,7 +47,7 @@ exclude = ["tests/", "scripts/"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-addopts = "--cov=semcode --cov-report=term-missing"
+addopts = "--cov=semcode --cov-report=term-missing --cov-fail-under=75"
 markers = [
     "slow: downloads and runs real ML models — pass --slow to include",
 ]

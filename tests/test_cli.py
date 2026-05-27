@@ -6,8 +6,33 @@ import pytest
 from typer.testing import CliRunner
 
 from semcode.__main__ import app
+from semcode.config import get_settings
 
 runner = CliRunner()
+
+
+class _FakePipeline:
+    def __init__(self, settings) -> None:
+        self.settings = settings
+        self.last_stats = {
+            "chunks_embedded": 0,
+            "cache_hits": 0,
+            "embedding_elapsed_ms": 0.0,
+            "elapsed_ms": 0.0,
+        }
+
+    def run(self, repo_path: Path, *, rebuild: bool = False):
+        import numpy as np
+        import pandas as pd
+
+        return pd.DataFrame(), np.zeros((0, 4), dtype=np.float32)
+
+
+@pytest.fixture(autouse=True)
+def _clear_settings_cache() -> None:
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 def test_help_lists_all_subcommands() -> None:
@@ -17,13 +42,15 @@ def test_help_lists_all_subcommands() -> None:
         assert cmd in result.output
 
 
-def test_index_runs_ingestor(tmp_path: Path) -> None:
+def test_index_runs_ingestor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("semcode.index.IndexingPipeline", _FakePipeline)
     result = runner.invoke(app, ["index", str(tmp_path)])
     assert result.exit_code == 0
     assert "ingested" in result.output
 
 
-def test_index_rebuild_flag(tmp_path: Path) -> None:
+def test_index_rebuild_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("semcode.index.IndexingPipeline", _FakePipeline)
     result = runner.invoke(app, ["index", str(tmp_path), "--rebuild"])
     assert result.exit_code == 0
     assert "ingested" in result.output
@@ -36,8 +63,12 @@ def test_search_help_shows_options() -> None:
     assert "--reranker" in result.output
 
 
-def test_search_k_option_is_recognized() -> None:
+def test_search_k_option_is_recognized(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # --k must not produce "No such option" regardless of index state
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("FAISS_INDEX_PATH", str(tmp_path / "index.faiss"))
+    monkeypatch.setenv("METADATA_PATH", str(tmp_path / "metadata.parquet"))
+    get_settings.cache_clear()
     result = runner.invoke(app, ["search", "find auth handler", "--k", "5"])
     assert "No such option" not in (result.output or "")
 

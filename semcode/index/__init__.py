@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # faiss-cpu and PyTorch each ship an OpenMP runtime (libomp140 vs libiomp5md).
@@ -39,6 +39,7 @@ _IVF_THRESHOLD_DEFAULT: int = 10_000
 # Exceptions
 # ---------------------------------------------------------------------------
 
+
 class ManifestMismatchError(ValueError):
     """Raised when a saved index manifest conflicts with current settings."""
 
@@ -46,6 +47,7 @@ class ManifestMismatchError(ValueError):
 # ---------------------------------------------------------------------------
 # VectorStore
 # ---------------------------------------------------------------------------
+
 
 class VectorStore:
     """FAISS-backed vector store with manifest-guarded persistence.
@@ -116,7 +118,7 @@ class VectorStore:
             "model_name": self.settings.embedding_model_name,
             "dimension": dim,
             "chunk_count": n,
-            "built_at": datetime.now(timezone.utc).isoformat(),
+            "built_at": datetime.now(UTC).isoformat(),
             "index_type": index_type,
             "id_mapped": ids is not None,
         }
@@ -127,7 +129,7 @@ class VectorStore:
         n = len(vectors)
         # Start with sqrt(n), then back off until FAISS won't warn about
         # insufficient training points (rule of thumb: 39 × nlist).
-        nlist = min(max(4, int(n ** 0.5)), 1024)
+        nlist = min(max(4, int(n**0.5)), 1024)
         while nlist > 1 and 39 * nlist > n:
             nlist = max(1, nlist // 2)
 
@@ -166,7 +168,7 @@ class VectorStore:
         self._manifest.update(
             {
                 "chunk_count": int(self._index.ntotal),
-                "built_at": datetime.now(timezone.utc).isoformat(),
+                "built_at": datetime.now(UTC).isoformat(),
             }
         )
         log.info("updated FAISS index", removed=removed, added=len(add_ids), n=self.ntotal)
@@ -224,9 +226,7 @@ class VectorStore:
             chunks=manifest.get("chunk_count"),
         )
 
-    def _validate_manifest(
-        self, manifest: dict, *, expected_dim: int | None = None
-    ) -> None:
+    def _validate_manifest(self, manifest: dict, *, expected_dim: int | None = None) -> None:
         saved_model = manifest.get("model_name", "")
         current_model = self.settings.embedding_model_name
         if saved_model != current_model:
@@ -290,6 +290,7 @@ class VectorStore:
 # ---------------------------------------------------------------------------
 # IndexingPipeline
 # ---------------------------------------------------------------------------
+
 
 class IndexingPipeline:
     """Orchestrate ingest → embed → FAISS build → persist.
@@ -475,12 +476,10 @@ class IndexingPipeline:
             }
 
         old_by_id = {
-            str(row["chunk_id"]): str(row.get("content_hash", ""))
-            for _, row in old_df.iterrows()
+            str(row["chunk_id"]): str(row.get("content_hash", "")) for _, row in old_df.iterrows()
         }
         new_by_id = {
-            str(row["chunk_id"]): str(row.get("content_hash", ""))
-            for _, row in new_df.iterrows()
+            str(row["chunk_id"]): str(row.get("content_hash", "")) for _, row in new_df.iterrows()
         }
 
         old_ids = set(old_by_id)
@@ -505,10 +504,7 @@ class IndexingPipeline:
             out["vector_id"] = list(range(len(out)))
             return out
 
-        old_ids = {
-            str(row["chunk_id"]): int(row["vector_id"])
-            for _, row in old_df.iterrows()
-        }
+        old_ids = {str(row["chunk_id"]): int(row["vector_id"]) for _, row in old_df.iterrows()}
         next_id = max(old_ids.values(), default=-1) + 1
         vector_ids: list[int] = []
         for _, row in out.iterrows():
@@ -537,8 +533,7 @@ class IndexingPipeline:
             for _, row in old_df.iterrows()
         }
         new_by_chunk = {
-            str(row["chunk_id"]): str(row.get("content_hash", ""))
-            for _, row in new_df.iterrows()
+            str(row["chunk_id"]): str(row.get("content_hash", "")) for _, row in new_df.iterrows()
         }
         changed_or_added: list[str] = []
         remove_ids: list[int] = []
