@@ -204,6 +204,14 @@ def test_search_rejects_multiple_query_vectors(tmp_path: Path) -> None:
         store.search(vecs[:2], k=1)
 
 
+def test_search_rejects_wrong_query_dimension(tmp_path: Path) -> None:
+    vecs = _unit_vectors(10)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+    with pytest.raises(ValueError, match="query dimension"):
+        store.search(np.zeros(MOCK_DIM + 1, dtype=np.float32), k=1)
+
+
 def test_search_before_build_raises(tmp_path: Path) -> None:
     store = VectorStore(_settings(tmp_path))
     with pytest.raises(RuntimeError, match="build"):

@@ -268,6 +268,9 @@ class VectorStore:
             vec = vec[np.newaxis, :]
         if vec.ndim != 2 or vec.shape[0] != 1:
             raise ValueError(f"Expected one query vector, got shape {vec.shape}")
+        expected_dim = int(self._index.d)
+        if vec.shape[1] != expected_dim:
+            raise ValueError(f"Expected query dimension {expected_dim}, got {vec.shape[1]}")
 
         k_clamped = min(k, max(self._index.ntotal, 1))
         scores, indices = self._index.search(vec, k_clamped)
