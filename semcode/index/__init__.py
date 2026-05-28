@@ -348,6 +348,11 @@ class IndexingPipeline:
         The return values are provided for callers that want to inspect results;
         all artifacts are also written to disk as a side-effect.
         """
+        if not repo_path.exists():
+            raise FileNotFoundError(f"Repository path does not exist: {repo_path}")
+        if not repo_path.is_dir():
+            raise NotADirectoryError(f"Repository path is not a directory: {repo_path}")
+
         import time
 
         pipeline_start = time.perf_counter()

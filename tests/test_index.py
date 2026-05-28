@@ -506,6 +506,13 @@ def test_pipeline_empty_repo(tmp_path: Path) -> None:
     assert s.faiss_index_path.with_suffix(".json").exists()
 
 
+def test_pipeline_rejects_missing_repo_path(tmp_path: Path) -> None:
+    s = _settings(tmp_path)
+    pipeline = IndexingPipeline(s, embedder=_mock_embedder(s))
+    with pytest.raises(FileNotFoundError, match="Repository path does not exist"):
+        pipeline.run(tmp_path / "missing")
+
+
 def test_pipeline_unchanged_reindex_embeds_zero_chunks(tmp_path: Path) -> None:
     repo = _copy_fixture_repo(tmp_path)
     s = _settings(tmp_path)
