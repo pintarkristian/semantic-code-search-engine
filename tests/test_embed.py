@@ -367,6 +367,13 @@ def test_embedding_cache_skips_wrong_dimension_vectors(settings: Settings) -> No
     assert cache.get("good") is not None
 
 
+def test_embedding_cache_rejects_wrong_dimension_on_set(settings: Settings) -> None:
+    cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
+
+    with pytest.raises(ValueError, match="cached vector dimension"):
+        cache.set("bad", np.zeros(_MOCK_DIM + 1, dtype=np.float32))
+
+
 def test_cached_embedding_counts_duplicate_content_as_hits(settings: Settings) -> None:
     df = pd.DataFrame(
         [

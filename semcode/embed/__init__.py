@@ -258,7 +258,12 @@ class EmbeddingCache:
         return self._vectors.get(content_hash)
 
     def set(self, content_hash: str, vector: np.ndarray) -> None:
-        self._vectors[content_hash] = np.asarray(vector, dtype=np.float32)
+        arr = np.asarray(vector, dtype=np.float32)
+        if arr.shape != (self.dimension,):
+            raise ValueError(
+                f"Expected cached vector dimension {self.dimension}, got shape {arr.shape}"
+            )
+        self._vectors[content_hash] = arr
 
 
 # ---------------------------------------------------------------------------
