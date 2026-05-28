@@ -502,7 +502,12 @@ def _load_searcher(app: FastAPI) -> bool:
     try:
         app.state.searcher._ensure_loaded()
         return True
-    except FileNotFoundError:
+    except Exception as exc:
+        log.warning(
+            "failed to load index at startup",
+            error=str(exc),
+            message="service is up but not ready for search",
+        )
         return False
 
 

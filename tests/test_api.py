@@ -113,6 +113,20 @@ async def test_health_not_ready_when_manifest_missing(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_corrupt_manifest_does_not_break_startup(tmp_path: Path) -> None:
+    app, settings = _preindexed_app(tmp_path)
+    settings.faiss_index_path.with_suffix(".json").write_text("{not-json")
+    app = create_app(settings)
+
+    async with _client(app) as client:
+        response = await client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "up"
+    assert response.json()["ready"] is False
+
+
+@pytest.mark.asyncio
 async def test_version_reports_manifest_and_model(tmp_path: Path) -> None:
     app, _ = _preindexed_app(tmp_path)
     async with _client(app) as client:
