@@ -269,6 +269,20 @@ async def test_rate_limit_exempts_system_endpoints(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_rate_limit_prunes_stale_clients(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    settings.rate_limit_requests = 10
+    settings.rate_limit_window_seconds = 60
+    app = create_app(settings)
+    async with _client(app) as client:
+        app.state.rate_limit_hits["stale-client"] = [0.0]
+        response = await client.get("/search", params={"q": "validate token", "k": 5})
+
+    assert response.status_code == 503
+    assert "stale-client" not in app.state.rate_limit_hits
+
+
+@pytest.mark.asyncio
 async def test_delete_index_clears_artifacts(tmp_path: Path) -> None:
     app, settings = _preindexed_app(tmp_path)
     async with _client(app) as client:

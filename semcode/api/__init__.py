@@ -445,6 +445,12 @@ def _rate_limited(app: FastAPI, request: Request, settings: Settings) -> bool:
     window = settings.rate_limit_window_seconds
     with app.state.jobs_lock:
         hits: dict[str, list[float]] = app.state.rate_limit_hits
+        for stored_client, timestamps in list(hits.items()):
+            fresh = [ts for ts in timestamps if now - ts < window]
+            if fresh:
+                hits[stored_client] = fresh
+            else:
+                hits.pop(stored_client, None)
         recent = [ts for ts in hits.get(client, []) if now - ts < window]
         if len(recent) >= settings.rate_limit_requests:
             hits[client] = recent
