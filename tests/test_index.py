@@ -395,6 +395,18 @@ def test_update_rejects_duplicate_add_ids(tmp_path: Path) -> None:
         )
 
 
+def test_update_rejects_wrong_add_vector_dimension(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs, ids=np.arange(3, dtype=np.int64))
+    with pytest.raises(ValueError, match="add_vectors dimension"):
+        store.update(
+            remove_ids=np.asarray([], dtype=np.int64),
+            add_vectors=np.zeros((1, MOCK_DIM + 1), dtype=np.float32),
+            add_ids=np.asarray([3], dtype=np.int64),
+        )
+
+
 # ---------------------------------------------------------------------------
 # IndexingPipeline
 # ---------------------------------------------------------------------------

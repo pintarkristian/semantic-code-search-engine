@@ -158,6 +158,11 @@ class VectorStore:
 
         if add_vectors.ndim != 2:
             raise ValueError(f"Expected 2-D add_vectors, got shape {add_vectors.shape}")
+        expected_dim = int(self._index.d)
+        if add_vectors.shape[1] != expected_dim:
+            raise ValueError(
+                f"Expected add_vectors dimension {expected_dim}, got {add_vectors.shape[1]}"
+            )
         if len(add_vectors) != len(add_ids):
             raise ValueError(f"Expected {len(add_vectors)} add ids, got {len(add_ids)}")
         if len(np.unique(add_ids)) != len(add_ids):
