@@ -99,6 +99,20 @@ async def test_health_with_index(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_health_not_ready_when_manifest_missing(tmp_path: Path) -> None:
+    app, settings = _preindexed_app(tmp_path)
+    settings.faiss_index_path.with_suffix(".json").unlink()
+
+    async with _client(app) as client:
+        response = await client.get("/health")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ready"] is False
+    assert str(settings.faiss_index_path.with_suffix(".json")) in body["missing_artifacts"]
+
+
+@pytest.mark.asyncio
 async def test_version_reports_manifest_and_model(tmp_path: Path) -> None:
     app, _ = _preindexed_app(tmp_path)
     async with _client(app) as client:

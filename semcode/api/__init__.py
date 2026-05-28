@@ -507,13 +507,21 @@ def _load_searcher(app: FastAPI) -> bool:
 
 
 def _index_artifacts_exist(settings: Settings) -> bool:
-    return settings.metadata_path.exists() and settings.faiss_index_path.exists()
+    return (
+        settings.metadata_path.exists()
+        and settings.faiss_index_path.exists()
+        and settings.faiss_index_path.with_suffix(".json").exists()
+    )
 
 
 def _missing_index_artifacts(settings: Settings) -> list[str]:
     return [
         str(path)
-        for path in [settings.metadata_path, settings.faiss_index_path]
+        for path in [
+            settings.metadata_path,
+            settings.faiss_index_path,
+            settings.faiss_index_path.with_suffix(".json"),
+        ]
         if not path.exists()
     ]
 
