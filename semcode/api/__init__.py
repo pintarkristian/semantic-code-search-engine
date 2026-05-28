@@ -553,10 +553,14 @@ def _read_index_manifest(settings: Settings) -> dict:
     if not manifest_path.exists():
         return {}
     try:
-        return json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         log.warning("failed to read index manifest", path=str(manifest_path), error=str(exc))
         return {"error": f"failed to read manifest: {exc}"}
+    if not isinstance(manifest, dict):
+        log.warning("index manifest is not a JSON object", path=str(manifest_path))
+        return {"error": "manifest must be a JSON object"}
+    return manifest
 
 
 def _update_index_size_metric(settings: Settings) -> None:

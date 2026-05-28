@@ -140,6 +140,19 @@ async def test_version_reports_manifest_read_error(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_version_rejects_non_object_manifest(tmp_path: Path) -> None:
+    app, settings = _preindexed_app(tmp_path)
+    settings.faiss_index_path.with_suffix(".json").write_text("[]")
+    app = create_app(settings)
+
+    async with _client(app) as client:
+        response = await client.get("/version")
+
+    assert response.status_code == 200
+    assert response.json()["index_manifest"]["error"] == "manifest must be a JSON object"
+
+
+@pytest.mark.asyncio
 async def test_version_reports_manifest_and_model(tmp_path: Path) -> None:
     app, _ = _preindexed_app(tmp_path)
     async with _client(app) as client:
