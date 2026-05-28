@@ -513,6 +513,15 @@ def test_pipeline_rejects_missing_repo_path(tmp_path: Path) -> None:
         pipeline.run(tmp_path / "missing")
 
 
+def test_pipeline_rejects_file_repo_path(tmp_path: Path) -> None:
+    repo_file = tmp_path / "not-a-repo.py"
+    repo_file.write_text("def f(): pass\n")
+    s = _settings(tmp_path)
+    pipeline = IndexingPipeline(s, embedder=_mock_embedder(s))
+    with pytest.raises(NotADirectoryError, match="not a directory"):
+        pipeline.run(repo_file)
+
+
 def test_pipeline_unchanged_reindex_embeds_zero_chunks(tmp_path: Path) -> None:
     repo = _copy_fixture_repo(tmp_path)
     s = _settings(tmp_path)
