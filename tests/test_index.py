@@ -126,6 +126,13 @@ def test_build_rejects_1d_array(tmp_path: Path) -> None:
         store.build(np.zeros(MOCK_DIM, dtype=np.float32))
 
 
+def test_build_rejects_duplicate_faiss_ids(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    with pytest.raises(ValueError, match="ids must be unique"):
+        store.build(vecs, ids=np.asarray([1, 1, 2], dtype=np.int64))
+
+
 # ---------------------------------------------------------------------------
 # VectorStore — search
 # ---------------------------------------------------------------------------

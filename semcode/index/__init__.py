@@ -93,6 +93,8 @@ class VectorStore:
         ids = None if ids is None else np.ascontiguousarray(ids, dtype=np.int64)
         if ids is not None and len(ids) != n:
             raise ValueError(f"Expected {n} ids, got {len(ids)}")
+        if ids is not None and len(np.unique(ids)) != len(ids):
+            raise ValueError("FAISS ids must be unique")
 
         if n == 0:
             base = faiss.IndexFlatIP(max(dim, 1))
