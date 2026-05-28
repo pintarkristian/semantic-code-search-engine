@@ -346,6 +346,13 @@ def test_sliding_window_symbol_names(tmp_path: Path) -> None:
             assert row["symbol_name"].startswith("lines_")
 
 
+def test_ingestor_rejects_non_positive_window_lines(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    with pytest.raises(ValueError, match="window_lines must be positive"):
+        CodeIngestor(repo, _settings(tmp_path), window_lines=0)
+
+
 # ---------------------------------------------------------------------------
 # Convenience wrapper
 # ---------------------------------------------------------------------------

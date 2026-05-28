@@ -90,6 +90,8 @@ class CodeIngestor:
     ) -> None:
         self.repo_path = repo_path.resolve()
         self.settings = settings or get_settings()
+        if window_lines <= 0:
+            raise ValueError("window_lines must be positive")
         self.window_lines = window_lines
         self.window_stride = window_stride
         self._gitignore = self._load_gitignore()
