@@ -168,6 +168,16 @@ def test_chunk_to_text_accepts_pandas_series(sample_df: pd.DataFrame) -> None:
         assert len(text) > 0
 
 
+def test_chunk_to_text_skips_missing_dataframe_values() -> None:
+    row = pd.Series({"symbol_name": pd.NA, "docstring": np.nan, "code": "def ok(): pass"})
+
+    text = chunk_to_text(row)
+
+    assert "nan" not in text.lower()
+    assert "<NA>" not in text
+    assert "def ok(): pass" in text
+
+
 # ---------------------------------------------------------------------------
 # Embedder — shape and dtype
 # ---------------------------------------------------------------------------
@@ -355,6 +365,13 @@ def test_embedding_cache_skips_wrong_dimension_vectors(settings: Settings) -> No
 
     assert cache.get("bad") is None
     assert cache.get("good") is not None
+
+
+def test_embedding_cache_rejects_wrong_dimension_on_set(settings: Settings) -> None:
+    cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
+
+    with pytest.raises(ValueError, match="cached vector dimension"):
+        cache.set("bad", np.zeros(_MOCK_DIM + 1, dtype=np.float32))
 
 
 def test_cached_embedding_counts_duplicate_content_as_hits(settings: Settings) -> None:

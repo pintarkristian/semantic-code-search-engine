@@ -126,6 +126,13 @@ def test_build_rejects_1d_array(tmp_path: Path) -> None:
         store.build(np.zeros(MOCK_DIM, dtype=np.float32))
 
 
+def test_build_rejects_duplicate_faiss_ids(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    with pytest.raises(ValueError, match="ids must be unique"):
+        store.build(vecs, ids=np.asarray([1, 1, 2], dtype=np.int64))
+
+
 # ---------------------------------------------------------------------------
 # VectorStore — search
 # ---------------------------------------------------------------------------
@@ -161,6 +168,14 @@ def test_search_k_clamped_to_ntotal(tmp_path: Path) -> None:
     assert len(results) == 3
 
 
+def test_search_rejects_non_positive_k(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+    with pytest.raises(ValueError, match="k must be positive"):
+        store.search(vecs[0], k=0)
+
+
 def test_search_scores_descending(tmp_path: Path) -> None:
     vecs = _unit_vectors(15)
     store = VectorStore(_settings(tmp_path))
@@ -186,6 +201,22 @@ def test_search_2d_query_accepted(tmp_path: Path) -> None:
     query = vecs[0:1]  # shape (1, dim)
     results = store.search(query, k=1)
     assert results[0][0] == 0
+
+
+def test_search_rejects_multiple_query_vectors(tmp_path: Path) -> None:
+    vecs = _unit_vectors(10)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+    with pytest.raises(ValueError, match="one query vector"):
+        store.search(vecs[:2], k=1)
+
+
+def test_search_rejects_wrong_query_dimension(tmp_path: Path) -> None:
+    vecs = _unit_vectors(10)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+    with pytest.raises(ValueError, match="query dimension"):
+        store.search(np.zeros(MOCK_DIM + 1, dtype=np.float32), k=1)
 
 
 def test_search_before_build_raises(tmp_path: Path) -> None:
@@ -329,6 +360,19 @@ def test_dimension_mismatch_raises(tmp_path: Path) -> None:
         store2.load(expected_dim=MOCK_DIM + 1)
 
 
+def test_load_rejects_non_object_manifest(tmp_path: Path) -> None:
+    vecs = _unit_vectors(5)
+    s = _settings(tmp_path)
+    store = VectorStore(s)
+    store.build(vecs)
+    store.save()
+    s.faiss_index_path.with_suffix(".json").write_text("[]", encoding="utf-8")
+
+    store2 = VectorStore(s)
+    with pytest.raises(ManifestMismatchError, match="JSON object"):
+        store2.load()
+
+
 def test_correct_expected_dim_loads_fine(tmp_path: Path) -> None:
     vecs = _unit_vectors(10)
     s = _settings(tmp_path)
@@ -345,6 +389,35 @@ def test_save_before_build_raises(tmp_path: Path) -> None:
     store = VectorStore(_settings(tmp_path))
     with pytest.raises(RuntimeError, match="build"):
         store.save()
+
+
+# ---------------------------------------------------------------------------
+# VectorStore — incremental update
+# ---------------------------------------------------------------------------
+
+
+def test_update_rejects_duplicate_add_ids(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs, ids=np.arange(3, dtype=np.int64))
+    with pytest.raises(ValueError, match="add ids must be unique"):
+        store.update(
+            remove_ids=np.asarray([], dtype=np.int64),
+            add_vectors=_unit_vectors(2, seed=1),
+            add_ids=np.asarray([3, 3], dtype=np.int64),
+        )
+
+
+def test_update_rejects_wrong_add_vector_dimension(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs, ids=np.arange(3, dtype=np.int64))
+    with pytest.raises(ValueError, match="add_vectors dimension"):
+        store.update(
+            remove_ids=np.asarray([], dtype=np.int64),
+            add_vectors=np.zeros((1, MOCK_DIM + 1), dtype=np.float32),
+            add_ids=np.asarray([3], dtype=np.int64),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -431,6 +504,22 @@ def test_pipeline_empty_repo(tmp_path: Path) -> None:
     assert s.metadata_path.exists()
     assert s.faiss_index_path.exists()
     assert s.faiss_index_path.with_suffix(".json").exists()
+
+
+def test_pipeline_rejects_missing_repo_path(tmp_path: Path) -> None:
+    s = _settings(tmp_path)
+    pipeline = IndexingPipeline(s, embedder=_mock_embedder(s))
+    with pytest.raises(FileNotFoundError, match="Repository path does not exist"):
+        pipeline.run(tmp_path / "missing")
+
+
+def test_pipeline_rejects_file_repo_path(tmp_path: Path) -> None:
+    repo_file = tmp_path / "not-a-repo.py"
+    repo_file.write_text("def f(): pass\n")
+    s = _settings(tmp_path)
+    pipeline = IndexingPipeline(s, embedder=_mock_embedder(s))
+    with pytest.raises(NotADirectoryError, match="not a directory"):
+        pipeline.run(repo_file)
 
 
 def test_pipeline_unchanged_reindex_embeds_zero_chunks(tmp_path: Path) -> None:

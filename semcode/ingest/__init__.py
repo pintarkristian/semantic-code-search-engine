@@ -90,6 +90,10 @@ class CodeIngestor:
     ) -> None:
         self.repo_path = repo_path.resolve()
         self.settings = settings or get_settings()
+        if window_lines <= 0:
+            raise ValueError("window_lines must be positive")
+        if window_stride <= 0:
+            raise ValueError("window_stride must be positive")
         self.window_lines = window_lines
         self.window_stride = window_stride
         self._gitignore = self._load_gitignore()
@@ -137,7 +141,7 @@ class CodeIngestor:
     def _make_chunk_id(
         self, rel_path: str, symbol_name: str, start_line: int, end_line: int
     ) -> str:
-        key = f"{self.repo_path}:{rel_path}:{symbol_name}:{start_line}:{end_line}"
+        key = f"{rel_path}:{symbol_name}:{start_line}:{end_line}"
         return hashlib.sha256(key.encode()).hexdigest()[:16]
 
     def _chunk_file(self, file_path: Path) -> list[dict]:

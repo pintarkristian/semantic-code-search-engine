@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pandas as pd
@@ -67,6 +68,20 @@ def test_chunk_ids_are_unique(df: pd.DataFrame) -> None:
 def test_chunk_ids_are_hex(df: pd.DataFrame) -> None:
     assert all(len(cid) == 16 for cid in df["chunk_id"])
     assert all(set(cid) <= set("0123456789abcdef") for cid in df["chunk_id"])
+
+
+def test_chunk_ids_are_stable_across_repo_locations(tmp_path: Path) -> None:
+    repo_a = tmp_path / "repo_a"
+    repo_b = tmp_path / "repo_b"
+    shutil.copytree(FIXTURE_REPO, repo_a)
+    shutil.copytree(FIXTURE_REPO, repo_b)
+
+    df_a = CodeIngestor(repo_a, _settings(tmp_path / "a")).ingest(persist=False)
+    df_b = CodeIngestor(repo_b, _settings(tmp_path / "b")).ingest(persist=False)
+
+    ids_a = df_a.sort_values(["file_path", "symbol_name", "start_line"])["chunk_id"].tolist()
+    ids_b = df_b.sort_values(["file_path", "symbol_name", "start_line"])["chunk_id"].tolist()
+    assert ids_a == ids_b
 
 
 # ---------------------------------------------------------------------------
@@ -344,6 +359,20 @@ def test_sliding_window_symbol_names(tmp_path: Path) -> None:
     for _, row in df.iterrows():
         if row["symbol_type"] == "chunk":
             assert row["symbol_name"].startswith("lines_")
+
+
+def test_ingestor_rejects_non_positive_window_lines(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    with pytest.raises(ValueError, match="window_lines must be positive"):
+        CodeIngestor(repo, _settings(tmp_path), window_lines=0)
+
+
+def test_ingestor_rejects_non_positive_window_stride(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    with pytest.raises(ValueError, match="window_stride must be positive"):
+        CodeIngestor(repo, _settings(tmp_path), window_stride=0)
 
 
 # ---------------------------------------------------------------------------

@@ -93,6 +93,8 @@ class VectorStore:
         ids = None if ids is None else np.ascontiguousarray(ids, dtype=np.int64)
         if ids is not None and len(ids) != n:
             raise ValueError(f"Expected {n} ids, got {len(ids)}")
+        if ids is not None and len(np.unique(ids)) != len(ids):
+            raise ValueError("FAISS ids must be unique")
 
         if n == 0:
             base = faiss.IndexFlatIP(max(dim, 1))
@@ -156,8 +158,15 @@ class VectorStore:
 
         if add_vectors.ndim != 2:
             raise ValueError(f"Expected 2-D add_vectors, got shape {add_vectors.shape}")
+        expected_dim = int(self._index.d)
+        if add_vectors.shape[1] != expected_dim:
+            raise ValueError(
+                f"Expected add_vectors dimension {expected_dim}, got {add_vectors.shape[1]}"
+            )
         if len(add_vectors) != len(add_ids):
             raise ValueError(f"Expected {len(add_vectors)} add ids, got {len(add_ids)}")
+        if len(np.unique(add_ids)) != len(add_ids):
+            raise ValueError("FAISS add ids must be unique")
 
         removed = 0
         if len(remove_ids):
@@ -209,7 +218,9 @@ class VectorStore:
         if not manifest_path.exists():
             raise FileNotFoundError(f"No manifest at {manifest_path}")
 
-        manifest = json.loads(manifest_path.read_text())
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if not isinstance(manifest, dict):
+            raise ManifestMismatchError("Index manifest must be a JSON object.")
         self._validate_manifest(manifest, expected_dim=expected_dim)
 
         self._index = faiss.read_index(str(index_path))
@@ -260,10 +271,17 @@ class VectorStore:
         """
         if self._index is None:
             raise RuntimeError("Index not built or loaded. Call build() or load() first.")
+        if k <= 0:
+            raise ValueError("k must be positive")
 
         vec = np.ascontiguousarray(query_vec, dtype=np.float32)
         if vec.ndim == 1:
             vec = vec[np.newaxis, :]
+        if vec.ndim != 2 or vec.shape[0] != 1:
+            raise ValueError(f"Expected one query vector, got shape {vec.shape}")
+        expected_dim = int(self._index.d)
+        if vec.shape[1] != expected_dim:
+            raise ValueError(f"Expected query dimension {expected_dim}, got {vec.shape[1]}")
 
         k_clamped = min(k, max(self._index.ntotal, 1))
         scores, indices = self._index.search(vec, k_clamped)
@@ -330,6 +348,11 @@ class IndexingPipeline:
         The return values are provided for callers that want to inspect results;
         all artifacts are also written to disk as a side-effect.
         """
+        if not repo_path.exists():
+            raise FileNotFoundError(f"Repository path does not exist: {repo_path}")
+        if not repo_path.is_dir():
+            raise NotADirectoryError(f"Repository path is not a directory: {repo_path}")
+
         import time
 
         pipeline_start = time.perf_counter()
