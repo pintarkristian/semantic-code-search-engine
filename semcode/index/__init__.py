@@ -218,7 +218,9 @@ class VectorStore:
         if not manifest_path.exists():
             raise FileNotFoundError(f"No manifest at {manifest_path}")
 
-        manifest = json.loads(manifest_path.read_text())
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if not isinstance(manifest, dict):
+            raise ManifestMismatchError("Index manifest must be a JSON object.")
         self._validate_manifest(manifest, expected_dim=expected_dim)
 
         self._index = faiss.read_index(str(index_path))

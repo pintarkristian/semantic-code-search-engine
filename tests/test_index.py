@@ -360,6 +360,19 @@ def test_dimension_mismatch_raises(tmp_path: Path) -> None:
         store2.load(expected_dim=MOCK_DIM + 1)
 
 
+def test_load_rejects_non_object_manifest(tmp_path: Path) -> None:
+    vecs = _unit_vectors(5)
+    s = _settings(tmp_path)
+    store = VectorStore(s)
+    store.build(vecs)
+    store.save()
+    s.faiss_index_path.with_suffix(".json").write_text("[]", encoding="utf-8")
+
+    store2 = VectorStore(s)
+    with pytest.raises(ManifestMismatchError, match="JSON object"):
+        store2.load()
+
+
 def test_correct_expected_dim_loads_fine(tmp_path: Path) -> None:
     vecs = _unit_vectors(10)
     s = _settings(tmp_path)
