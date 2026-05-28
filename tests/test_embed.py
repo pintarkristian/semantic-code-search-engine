@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import pickle
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +12,7 @@ import pandas as pd
 import pytest
 
 from semcode.config import Settings
-from semcode.embed import Embedder, chunk_to_text, embed_dataframe
+from semcode.embed import Embedder, EmbeddingCache, chunk_to_text, embed_dataframe
 
 # ---------------------------------------------------------------------------
 # Mock model — deterministic, content-addressed vectors, no network calls
@@ -315,6 +316,17 @@ def test_encode_truncates_to_max_chars(settings: Settings) -> None:
     # Just verify encode doesn't crash with very long input
     out = emb.encode([long_text])
     assert out.shape == (1, _MOCK_DIM)
+
+
+def test_embedding_cache_ignores_malformed_payload(settings: Settings) -> None:
+    cache_path = settings.data_dir / "embedding_cache.pkl"
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(cache_path, "wb") as f:
+        pickle.dump(["not", "a", "cache"], f)
+
+    cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
+
+    assert cache.get("missing") is None
 
 
 # ---------------------------------------------------------------------------

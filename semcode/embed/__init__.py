@@ -188,6 +188,14 @@ class EmbeddingCache:
             log.warning("ignoring unreadable embedding cache", path=str(self.path), error=str(exc))
             return
 
+        if not isinstance(payload, dict):
+            log.warning(
+                "ignoring malformed embedding cache",
+                path=str(self.path),
+                payload_type=type(payload).__name__,
+            )
+            return
+
         if (
             payload.get("model_name") != self.model_name
             or int(payload.get("dimension", -1)) != self.dimension
