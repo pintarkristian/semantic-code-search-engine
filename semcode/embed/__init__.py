@@ -344,7 +344,7 @@ def embed_dataframe_cached(
     stats: dict[str, int | float] = {
         "chunks": len(hashes),
         "chunks_embedded": len(missing_hashes),
-        "cache_hits": len(hashes) - sum(1 for h in hashes if h in missing_hashes),
+        "cache_hits": len(hashes) - len(missing_hashes),
         "cache_entries": len(cache._vectors),
         "elapsed_ms": elapsed_ms,
     }

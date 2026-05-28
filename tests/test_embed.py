@@ -12,7 +12,13 @@ import pandas as pd
 import pytest
 
 from semcode.config import Settings
-from semcode.embed import Embedder, EmbeddingCache, chunk_to_text, embed_dataframe
+from semcode.embed import (
+    Embedder,
+    EmbeddingCache,
+    chunk_to_text,
+    embed_dataframe,
+    embed_dataframe_cached,
+)
 
 # ---------------------------------------------------------------------------
 # Mock model — deterministic, content-addressed vectors, no network calls
@@ -349,6 +355,19 @@ def test_embedding_cache_skips_wrong_dimension_vectors(settings: Settings) -> No
 
     assert cache.get("bad") is None
     assert cache.get("good") is not None
+
+
+def test_cached_embedding_counts_duplicate_content_as_hits(settings: Settings) -> None:
+    df = pd.DataFrame(
+        [
+            {"symbol_name": "same", "docstring": "", "code": "def same(): return 1"},
+            {"symbol_name": "same", "docstring": "", "code": "def same(): return 1"},
+        ]
+    )
+    _, stats = embed_dataframe_cached(df, embedder=Embedder(settings, _model=_MockModel()))
+
+    assert stats["chunks_embedded"] == 1
+    assert stats["cache_hits"] == 1
 
 
 # ---------------------------------------------------------------------------
