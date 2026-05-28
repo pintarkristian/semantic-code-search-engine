@@ -380,6 +380,10 @@ class TestBM25Retriever:
         hits = bm25.search("alpha beta gamma", k=2)
         assert len(hits) <= 2
 
+    def test_non_positive_k_returns_no_hits(self) -> None:
+        bm25 = BM25Retriever([["alpha"], ["beta"]])
+        assert bm25.search("alpha", k=0) == []
+
     def test_scores_descending(self) -> None:
         corpus = [
             ["foo"],

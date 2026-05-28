@@ -88,6 +88,8 @@ class BM25Retriever:
 
         Documents with a BM25 score of zero are excluded.
         """
+        if k <= 0:
+            return []
         if self._bm25 is None or not self._corpus:
             return []
         query_tokens = tokenize(query)
