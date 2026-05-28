@@ -4,9 +4,14 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Annotated
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+PositiveFloat = Annotated[float, Field(gt=0)]
+PositiveInt = Annotated[int, Field(gt=0)]
+NonNegativeInt = Annotated[int, Field(ge=0)]
 
 
 class Settings(BaseSettings):
@@ -19,15 +24,15 @@ class Settings(BaseSettings):
     port: int = 8000
     log_level: str = "INFO"  # DEBUG | INFO | WARNING | ERROR
     log_format: str = "pretty"  # "pretty" (dev) | "json" (prod)
-    request_timeout_seconds: float = Field(30.0, gt=0)
-    rate_limit_requests: int = Field(120, ge=0)
-    rate_limit_window_seconds: int = Field(60, gt=0)
+    request_timeout_seconds: PositiveFloat = 30.0
+    rate_limit_requests: NonNegativeInt = 120
+    rate_limit_window_seconds: PositiveInt = 60
 
     # --- embedding model ---
     embedding_model_name: str = "flax-sentence-embeddings/st-codesearch-distilroberta-base"
     embedding_device: str = "cpu"  # "cpu" | "cuda" — override to "cuda" if GPU available
-    batch_size: int = Field(64, gt=0)
-    max_chunk_tokens: int = Field(512, gt=0)
+    batch_size: PositiveInt = 64
+    max_chunk_tokens: PositiveInt = 512
 
     # --- paths ---
     data_dir: Path = Path("data")
@@ -36,10 +41,10 @@ class Settings(BaseSettings):
     reranker_model_path: Path = Path("data/reranker")
 
     # --- retrieval ---
-    top_k_retrieve: int = Field(50, gt=0)  # candidates fetched from each source before fusion
-    top_k_return: int = Field(10, gt=0)  # results returned to the caller
-    max_query_length: int = Field(512, gt=0)
-    max_search_k: int = Field(100, gt=0)
+    top_k_retrieve: PositiveInt = 50  # candidates fetched from each source before fusion
+    top_k_return: PositiveInt = 10  # results returned to the caller
+    max_query_length: PositiveInt = 512
+    max_search_k: PositiveInt = 100
     use_reranker: bool = False  # optional final learned re-ranking stage
 
     # --- fusion weights (must sum to 1.0 for RRF scaling to be meaningful) ---
