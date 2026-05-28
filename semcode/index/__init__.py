@@ -160,6 +160,8 @@ class VectorStore:
             raise ValueError(f"Expected 2-D add_vectors, got shape {add_vectors.shape}")
         if len(add_vectors) != len(add_ids):
             raise ValueError(f"Expected {len(add_vectors)} add ids, got {len(add_ids)}")
+        if len(np.unique(add_ids)) != len(add_ids):
+            raise ValueError("FAISS add ids must be unique")
 
         removed = 0
         if len(remove_ids):

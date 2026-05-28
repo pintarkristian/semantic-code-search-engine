@@ -379,6 +379,23 @@ def test_save_before_build_raises(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# VectorStore — incremental update
+# ---------------------------------------------------------------------------
+
+
+def test_update_rejects_duplicate_add_ids(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs, ids=np.arange(3, dtype=np.int64))
+    with pytest.raises(ValueError, match="add ids must be unique"):
+        store.update(
+            remove_ids=np.asarray([], dtype=np.int64),
+            add_vectors=_unit_vectors(2, seed=1),
+            add_ids=np.asarray([3, 3], dtype=np.int64),
+        )
+
+
+# ---------------------------------------------------------------------------
 # IndexingPipeline
 # ---------------------------------------------------------------------------
 
