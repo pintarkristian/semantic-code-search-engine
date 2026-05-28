@@ -497,3 +497,17 @@ def test_pipeline_deleted_file_removed_from_search_results(tmp_path: Path) -> No
     )
     assert all(result.file_path != "utils.js" for result in after)
     assert pipeline.last_stats["removed"] > 0
+
+
+def test_pipeline_rebuilds_when_faiss_artifact_missing(tmp_path: Path) -> None:
+    repo = _copy_fixture_repo(tmp_path)
+    s = _settings(tmp_path)
+    pipeline = IndexingPipeline(s, embedder=_mock_embedder(s))
+    pipeline.run(repo)
+
+    s.faiss_index_path.unlink()
+    df, vectors = pipeline.run(repo)
+
+    assert s.faiss_index_path.exists()
+    assert pipeline.last_stats["full_rebuild"] is True
+    assert len(df) == vectors.shape[0]
