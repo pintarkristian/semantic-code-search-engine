@@ -2,7 +2,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.11-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-[![CI](https://github.com/your-org/semcode/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/semcode/actions/workflows/ci.yml)
+[![CI](https://github.com/pintarkristian/semantic-code-search-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/pintarkristian/semantic-code-search-engine/actions/workflows/ci.yml)
 ![Status](https://img.shields.io/badge/status-in%20development-orange)
 
 > **Search your codebase by what you mean, not what you typed.**
@@ -172,8 +172,8 @@ for the re-ranker, and stores the training dataset.
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-org/semcode.git
-cd semcode
+git clone https://github.com/pintarkristian/semantic-code-search-engine.git
+cd semantic-code-search-engine
 
 # 2. Create a Python 3.11 virtual environment
 python3.11 -m venv .venv

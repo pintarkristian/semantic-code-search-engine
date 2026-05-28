@@ -41,6 +41,7 @@ log = get_logger(__name__)
 
 JobStatus = Literal["queued", "running", "succeeded", "failed"]
 
+_RATE_LIMIT_EXEMPT_PATHS = {"/health", "/version", "/metrics"}
 _REGISTRY = CollectorRegistry()
 _REQUESTS = Counter(
     "semcode_http_requests_total",
@@ -273,10 +274,13 @@ def create_app(
     ) -> SearchResponse:
         """Search the loaded index and return ranked code chunks."""
         start = time.perf_counter()
+        query = q.strip()
+        if not query:
+            raise HTTPException(status_code=422, detail="query must contain non-whitespace text")
         try:
             if not _index_artifacts_exist(app_settings):
                 raise FileNotFoundError(_missing_index_message(app_settings))
-            results = app.state.searcher.search(q, k=k, use_reranker=use_reranker)
+            results = app.state.searcher.search(query, k=k, use_reranker=use_reranker)
             app.state.index_loaded = True
         except FileNotFoundError as exc:
             app.state.index_loaded = False
@@ -291,7 +295,7 @@ def create_app(
         latency = time.perf_counter() - start
         _SEARCH_LATENCY.labels(use_reranker=str(use_reranker).lower()).observe(latency)
         return SearchResponse(
-            query=q,
+            query=query,
             latency_ms=round(latency * 1000, 3),
             results=results,
         )
@@ -434,11 +438,19 @@ def _json_error(
 def _rate_limited(app: FastAPI, request: Request, settings: Settings) -> bool:
     if settings.rate_limit_requests <= 0:
         return False
+    if request.url.path in _RATE_LIMIT_EXEMPT_PATHS:
+        return False
     now = time.monotonic()
     client = _client_host(request)
     window = settings.rate_limit_window_seconds
     with app.state.jobs_lock:
         hits: dict[str, list[float]] = app.state.rate_limit_hits
+        for stored_client, timestamps in list(hits.items()):
+            fresh = [ts for ts in timestamps if now - ts < window]
+            if fresh:
+                hits[stored_client] = fresh
+            else:
+                hits.pop(stored_client, None)
         recent = [ts for ts in hits.get(client, []) if now - ts < window]
         if len(recent) >= settings.rate_limit_requests:
             hits[client] = recent
@@ -502,18 +514,31 @@ def _load_searcher(app: FastAPI) -> bool:
     try:
         app.state.searcher._ensure_loaded()
         return True
-    except FileNotFoundError:
+    except Exception as exc:
+        log.warning(
+            "failed to load index at startup",
+            error=str(exc),
+            message="service is up but not ready for search",
+        )
         return False
 
 
 def _index_artifacts_exist(settings: Settings) -> bool:
-    return settings.metadata_path.exists() and settings.faiss_index_path.exists()
+    return (
+        settings.metadata_path.exists()
+        and settings.faiss_index_path.exists()
+        and settings.faiss_index_path.with_suffix(".json").exists()
+    )
 
 
 def _missing_index_artifacts(settings: Settings) -> list[str]:
     return [
         str(path)
-        for path in [settings.metadata_path, settings.faiss_index_path]
+        for path in [
+            settings.metadata_path,
+            settings.faiss_index_path,
+            settings.faiss_index_path.with_suffix(".json"),
+        ]
         if not path.exists()
     ]
 
@@ -527,7 +552,15 @@ def _read_index_manifest(settings: Settings) -> dict:
     manifest_path = settings.faiss_index_path.with_suffix(".json")
     if not manifest_path.exists():
         return {}
-    return json.loads(manifest_path.read_text(encoding="utf-8"))
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        log.warning("failed to read index manifest", path=str(manifest_path), error=str(exc))
+        return {"error": f"failed to read manifest: {exc}"}
+    if not isinstance(manifest, dict):
+        log.warning("index manifest is not a JSON object", path=str(manifest_path))
+        return {"error": "manifest must be a JSON object"}
+    return manifest
 
 
 def _update_index_size_metric(settings: Settings) -> None:

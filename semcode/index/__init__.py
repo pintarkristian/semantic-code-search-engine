@@ -345,11 +345,16 @@ class IndexingPipeline:
         dimension = self.embedder.dimension
         manifest_changed = self._manifest_changed(expected_dim=dimension)
         legacy_index = self._legacy_unmapped_index()
-        full_rebuild = bool(rebuild or manifest_changed or legacy_index or old_df is None)
+        index_artifacts_missing = self._index_artifacts_missing()
+        full_rebuild = bool(
+            rebuild or manifest_changed or legacy_index or index_artifacts_missing or old_df is None
+        )
         if manifest_changed and not rebuild:
             log.info("pipeline: manifest changed, forcing full rebuild")
         if legacy_index and not rebuild:
             log.info("pipeline: legacy unmapped index, forcing one-time full rebuild")
+        if index_artifacts_missing and not rebuild:
+            log.info("pipeline: index artifacts missing, forcing full rebuild")
 
         if old_df is not None:
             old_df = ensure_content_hashes(old_df, self.settings)
@@ -438,6 +443,12 @@ class IndexingPipeline:
         if not self.settings.metadata_path.exists():
             return None
         return pd.read_parquet(self.settings.metadata_path)
+
+    def _index_artifacts_missing(self) -> bool:
+        return not (
+            self.settings.faiss_index_path.exists()
+            and self.settings.faiss_index_path.with_suffix(".json").exists()
+        )
 
     def _manifest_changed(self, *, expected_dim: int) -> bool:
         manifest_path = self.settings.faiss_index_path.with_suffix(".json")

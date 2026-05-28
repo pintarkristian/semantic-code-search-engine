@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import pickle
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +12,13 @@ import pandas as pd
 import pytest
 
 from semcode.config import Settings
-from semcode.embed import Embedder, chunk_to_text, embed_dataframe
+from semcode.embed import (
+    Embedder,
+    EmbeddingCache,
+    chunk_to_text,
+    embed_dataframe,
+    embed_dataframe_cached,
+)
 
 # ---------------------------------------------------------------------------
 # Mock model — deterministic, content-addressed vectors, no network calls
@@ -315,6 +322,52 @@ def test_encode_truncates_to_max_chars(settings: Settings) -> None:
     # Just verify encode doesn't crash with very long input
     out = emb.encode([long_text])
     assert out.shape == (1, _MOCK_DIM)
+
+
+def test_embedding_cache_ignores_malformed_payload(settings: Settings) -> None:
+    cache_path = settings.data_dir / "embedding_cache.pkl"
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(cache_path, "wb") as f:
+        pickle.dump(["not", "a", "cache"], f)
+
+    cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
+
+    assert cache.get("missing") is None
+
+
+def test_embedding_cache_skips_wrong_dimension_vectors(settings: Settings) -> None:
+    cache_path = settings.data_dir / "embedding_cache.pkl"
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(cache_path, "wb") as f:
+        pickle.dump(
+            {
+                "model_name": settings.embedding_model_name,
+                "dimension": _MOCK_DIM,
+                "vectors": {
+                    "bad": np.zeros(_MOCK_DIM + 1, dtype=np.float32),
+                    "good": np.zeros(_MOCK_DIM, dtype=np.float32),
+                },
+            },
+            f,
+        )
+
+    cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
+
+    assert cache.get("bad") is None
+    assert cache.get("good") is not None
+
+
+def test_cached_embedding_counts_duplicate_content_as_hits(settings: Settings) -> None:
+    df = pd.DataFrame(
+        [
+            {"symbol_name": "same", "docstring": "", "code": "def same(): return 1"},
+            {"symbol_name": "same", "docstring": "", "code": "def same(): return 1"},
+        ]
+    )
+    _, stats = embed_dataframe_cached(df, embedder=Embedder(settings, _model=_MockModel()))
+
+    assert stats["chunks_embedded"] == 1
+    assert stats["cache_hits"] == 1
 
 
 # ---------------------------------------------------------------------------

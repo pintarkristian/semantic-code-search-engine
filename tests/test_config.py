@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from semcode.config import Settings, get_settings
 
@@ -46,6 +47,29 @@ def test_path_fields_are_path_objects(monkeypatch: pytest.MonkeyPatch) -> None:
     s = Settings()
     assert s.data_dir == Path("/tmp/mydata")
     assert s.faiss_index_path == Path("/tmp/mydata/custom.faiss")
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("request_timeout_seconds", 0),
+        ("rate_limit_requests", -1),
+        ("rate_limit_window_seconds", 0),
+        ("batch_size", 0),
+        ("max_chunk_tokens", 0),
+        ("top_k_retrieve", 0),
+        ("top_k_return", 0),
+        ("max_query_length", 0),
+        ("max_search_k", 0),
+    ],
+)
+def test_operational_limits_must_be_positive(field: str, value: int) -> None:
+    with pytest.raises(ValidationError):
+        Settings(**{field: value})
+
+
+def test_rate_limit_zero_disables_limiter() -> None:
+    assert Settings(rate_limit_requests=0).rate_limit_requests == 0
 
 
 def test_get_settings_is_cached() -> None:

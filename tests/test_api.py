@@ -99,6 +99,60 @@ async def test_health_with_index(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_health_not_ready_when_manifest_missing(tmp_path: Path) -> None:
+    app, settings = _preindexed_app(tmp_path)
+    settings.faiss_index_path.with_suffix(".json").unlink()
+
+    async with _client(app) as client:
+        response = await client.get("/health")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ready"] is False
+    assert str(settings.faiss_index_path.with_suffix(".json")) in body["missing_artifacts"]
+
+
+@pytest.mark.asyncio
+async def test_corrupt_manifest_does_not_break_startup(tmp_path: Path) -> None:
+    app, settings = _preindexed_app(tmp_path)
+    settings.faiss_index_path.with_suffix(".json").write_text("{not-json")
+    app = create_app(settings)
+
+    async with _client(app) as client:
+        response = await client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "up"
+    assert response.json()["ready"] is False
+
+
+@pytest.mark.asyncio
+async def test_version_reports_manifest_read_error(tmp_path: Path) -> None:
+    app, settings = _preindexed_app(tmp_path)
+    settings.faiss_index_path.with_suffix(".json").write_text("{not-json")
+    app = create_app(settings)
+
+    async with _client(app) as client:
+        response = await client.get("/version")
+
+    assert response.status_code == 200
+    assert "failed to read manifest" in response.json()["index_manifest"]["error"]
+
+
+@pytest.mark.asyncio
+async def test_version_rejects_non_object_manifest(tmp_path: Path) -> None:
+    app, settings = _preindexed_app(tmp_path)
+    settings.faiss_index_path.with_suffix(".json").write_text("[]")
+    app = create_app(settings)
+
+    async with _client(app) as client:
+        response = await client.get("/version")
+
+    assert response.status_code == 200
+    assert response.json()["index_manifest"]["error"] == "manifest must be a JSON object"
+
+
+@pytest.mark.asyncio
 async def test_version_reports_manifest_and_model(tmp_path: Path) -> None:
     app, _ = _preindexed_app(tmp_path)
     async with _client(app) as client:
@@ -168,6 +222,26 @@ async def test_bad_search_input_returns_422(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_blank_search_query_returns_422(tmp_path: Path) -> None:
+    app = create_app(_settings(tmp_path))
+    async with _client(app) as client:
+        response = await client.get("/search", params={"q": "   ", "k": 5})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["message"] == "query must contain non-whitespace text"
+
+
+@pytest.mark.asyncio
+async def test_search_trims_query_before_search(tmp_path: Path) -> None:
+    app, _ = _preindexed_app(tmp_path)
+    async with _client(app) as client:
+        response = await client.get("/search", params={"q": "  validate JWT token  ", "k": 5})
+
+    assert response.status_code == 200
+    assert response.json()["query"] == "validate JWT token"
+
+
+@pytest.mark.asyncio
 async def test_search_without_index_returns_friendly_503(tmp_path: Path) -> None:
     app = create_app(_settings(tmp_path))
     async with _client(app) as client:
@@ -184,11 +258,41 @@ async def test_rate_limit_returns_429(tmp_path: Path) -> None:
     settings.rate_limit_window_seconds = 60
     app = create_app(settings)
     async with _client(app) as client:
-        first = await client.get("/health")
-        second = await client.get("/health")
+        first = await client.get("/search", params={"q": "validate token", "k": 5})
+        second = await client.get("/search", params={"q": "validate token", "k": 5})
 
-    assert first.status_code == 200
+    assert first.status_code == 503
     assert second.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_exempts_system_endpoints(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    settings.rate_limit_requests = 1
+    settings.rate_limit_window_seconds = 60
+    app = create_app(settings)
+    async with _client(app) as client:
+        health = await client.get("/health")
+        version = await client.get("/version")
+        metrics = await client.get("/metrics")
+
+    assert health.status_code == 200
+    assert version.status_code == 200
+    assert metrics.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_prunes_stale_clients(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    settings.rate_limit_requests = 10
+    settings.rate_limit_window_seconds = 60
+    app = create_app(settings)
+    async with _client(app) as client:
+        app.state.rate_limit_hits["stale-client"] = [0.0]
+        response = await client.get("/search", params={"q": "validate token", "k": 5})
+
+    assert response.status_code == 503
+    assert "stale-client" not in app.state.rate_limit_hits
 
 
 @pytest.mark.asyncio
