@@ -353,6 +353,13 @@ def test_ingestor_rejects_non_positive_window_lines(tmp_path: Path) -> None:
         CodeIngestor(repo, _settings(tmp_path), window_lines=0)
 
 
+def test_ingestor_rejects_non_positive_window_stride(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    with pytest.raises(ValueError, match="window_stride must be positive"):
+        CodeIngestor(repo, _settings(tmp_path), window_stride=0)
+
+
 # ---------------------------------------------------------------------------
 # Convenience wrapper
 # ---------------------------------------------------------------------------
