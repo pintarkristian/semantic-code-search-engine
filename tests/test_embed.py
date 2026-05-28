@@ -329,6 +329,28 @@ def test_embedding_cache_ignores_malformed_payload(settings: Settings) -> None:
     assert cache.get("missing") is None
 
 
+def test_embedding_cache_skips_wrong_dimension_vectors(settings: Settings) -> None:
+    cache_path = settings.data_dir / "embedding_cache.pkl"
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(cache_path, "wb") as f:
+        pickle.dump(
+            {
+                "model_name": settings.embedding_model_name,
+                "dimension": _MOCK_DIM,
+                "vectors": {
+                    "bad": np.zeros(_MOCK_DIM + 1, dtype=np.float32),
+                    "good": np.zeros(_MOCK_DIM, dtype=np.float32),
+                },
+            },
+            f,
+        )
+
+    cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
+
+    assert cache.get("bad") is None
+    assert cache.get("good") is not None
+
+
 # ---------------------------------------------------------------------------
 # Slow tests — real model (skipped unless --slow is passed)
 # ---------------------------------------------------------------------------
