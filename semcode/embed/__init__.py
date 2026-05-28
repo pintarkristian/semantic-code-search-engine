@@ -37,6 +37,15 @@ def embedding_cache_path(settings: Settings) -> Path:
 # ---------------------------------------------------------------------------
 
 
+def _text_value(value: Any) -> str:
+    if value is None:
+        return ""
+    text = str(value).strip()
+    if text in {"nan", "<NA>", "NaT", "None"}:
+        return ""
+    return text
+
+
 def chunk_to_text(row: Any, max_chars: int = 2048) -> str:
     """Combine symbol_name + docstring + code into a single embedding input string.
 
@@ -46,19 +55,19 @@ def chunk_to_text(row: Any, max_chars: int = 2048) -> str:
     """
     parts: list[str] = []
 
-    name = str(
+    name = _text_value(
         row.get("symbol_name", "") if hasattr(row, "get") else getattr(row, "symbol_name", "")
-    ).strip()
+    )
     if name and name != "<anonymous>":
         parts.append(f"symbol: {name}")
 
-    doc = str(
+    doc = _text_value(
         row.get("docstring", "") if hasattr(row, "get") else getattr(row, "docstring", "")
-    ).strip()
+    )
     if doc:
         parts.append(doc)
 
-    code = str(row.get("code", "") if hasattr(row, "get") else getattr(row, "code", "")).strip()
+    code = _text_value(row.get("code", "") if hasattr(row, "get") else getattr(row, "code", ""))
     if code:
         parts.append(code)
 

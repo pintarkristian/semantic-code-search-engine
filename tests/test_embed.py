@@ -168,6 +168,16 @@ def test_chunk_to_text_accepts_pandas_series(sample_df: pd.DataFrame) -> None:
         assert len(text) > 0
 
 
+def test_chunk_to_text_skips_missing_dataframe_values() -> None:
+    row = pd.Series({"symbol_name": pd.NA, "docstring": np.nan, "code": "def ok(): pass"})
+
+    text = chunk_to_text(row)
+
+    assert "nan" not in text.lower()
+    assert "<NA>" not in text
+    assert "def ok(): pass" in text
+
+
 # ---------------------------------------------------------------------------
 # Embedder — shape and dtype
 # ---------------------------------------------------------------------------
