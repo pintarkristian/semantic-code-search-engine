@@ -260,6 +260,8 @@ class VectorStore:
         """
         if self._index is None:
             raise RuntimeError("Index not built or loaded. Call build() or load() first.")
+        if k <= 0:
+            raise ValueError("k must be positive")
 
         vec = np.ascontiguousarray(query_vec, dtype=np.float32)
         if vec.ndim == 1:

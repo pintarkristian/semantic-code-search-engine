@@ -161,6 +161,14 @@ def test_search_k_clamped_to_ntotal(tmp_path: Path) -> None:
     assert len(results) == 3
 
 
+def test_search_rejects_non_positive_k(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+    with pytest.raises(ValueError, match="k must be positive"):
+        store.search(vecs[0], k=0)
+
+
 def test_search_scores_descending(tmp_path: Path) -> None:
     vecs = _unit_vectors(15)
     store = VectorStore(_settings(tmp_path))
