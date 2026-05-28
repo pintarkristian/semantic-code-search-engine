@@ -511,3 +511,17 @@ def test_pipeline_rebuilds_when_faiss_artifact_missing(tmp_path: Path) -> None:
     assert s.faiss_index_path.exists()
     assert pipeline.last_stats["full_rebuild"] is True
     assert len(df) == vectors.shape[0]
+
+
+def test_pipeline_rebuilds_when_manifest_artifact_missing(tmp_path: Path) -> None:
+    repo = _copy_fixture_repo(tmp_path)
+    s = _settings(tmp_path)
+    pipeline = IndexingPipeline(s, embedder=_mock_embedder(s))
+    pipeline.run(repo)
+
+    s.faiss_index_path.with_suffix(".json").unlink()
+    df, vectors = pipeline.run(repo)
+
+    assert s.faiss_index_path.with_suffix(".json").exists()
+    assert pipeline.last_stats["full_rebuild"] is True
+    assert len(df) == vectors.shape[0]
