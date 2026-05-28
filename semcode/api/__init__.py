@@ -41,6 +41,7 @@ log = get_logger(__name__)
 
 JobStatus = Literal["queued", "running", "succeeded", "failed"]
 
+_RATE_LIMIT_EXEMPT_PATHS = {"/health", "/version", "/metrics"}
 _REGISTRY = CollectorRegistry()
 _REQUESTS = Counter(
     "semcode_http_requests_total",
@@ -436,6 +437,8 @@ def _json_error(
 
 def _rate_limited(app: FastAPI, request: Request, settings: Settings) -> bool:
     if settings.rate_limit_requests <= 0:
+        return False
+    if request.url.path in _RATE_LIMIT_EXEMPT_PATHS:
         return False
     now = time.monotonic()
     client = _client_host(request)

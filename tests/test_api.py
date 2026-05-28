@@ -245,11 +245,27 @@ async def test_rate_limit_returns_429(tmp_path: Path) -> None:
     settings.rate_limit_window_seconds = 60
     app = create_app(settings)
     async with _client(app) as client:
-        first = await client.get("/health")
-        second = await client.get("/health")
+        first = await client.get("/search", params={"q": "validate token", "k": 5})
+        second = await client.get("/search", params={"q": "validate token", "k": 5})
 
-    assert first.status_code == 200
+    assert first.status_code == 503
     assert second.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_exempts_system_endpoints(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    settings.rate_limit_requests = 1
+    settings.rate_limit_window_seconds = 60
+    app = create_app(settings)
+    async with _client(app) as client:
+        health = await client.get("/health")
+        version = await client.get("/version")
+        metrics = await client.get("/metrics")
+
+    assert health.status_code == 200
+    assert version.status_code == 200
+    assert metrics.status_code == 200
 
 
 @pytest.mark.asyncio
