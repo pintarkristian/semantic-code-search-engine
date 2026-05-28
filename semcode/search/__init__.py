@@ -163,6 +163,7 @@ class Searcher:
         else:
             log.warning("BM25 corpus not found, rebuilding from metadata", path=str(bm25_path))
             bm25 = BM25Retriever.from_dataframe(meta)
+            bm25.save(bm25_path)
 
         self._store = store
         self._meta = meta

@@ -210,6 +210,17 @@ class TestSearcher:
         searcher.search("b", k=1)
         assert searcher._store is store_ref  # same object, not reloaded
 
+    def test_missing_bm25_corpus_is_rebuilt_and_saved(self, tmp_path: Path) -> None:
+        settings, embedder, _ = _build_index(tmp_path)
+        bm25_path = bm25_corpus_path(settings.faiss_index_path)
+        bm25_path.unlink()
+
+        searcher = Searcher(settings, embedder=embedder)
+        results = searcher.search("function", k=1)
+
+        assert results
+        assert bm25_path.exists()
+
     def test_fused_score_positive(self, tmp_path: Path) -> None:
         settings, embedder, _ = _build_index(tmp_path)
         searcher = Searcher(settings, embedder=embedder)
