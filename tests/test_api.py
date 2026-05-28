@@ -209,6 +209,26 @@ async def test_bad_search_input_returns_422(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_blank_search_query_returns_422(tmp_path: Path) -> None:
+    app = create_app(_settings(tmp_path))
+    async with _client(app) as client:
+        response = await client.get("/search", params={"q": "   ", "k": 5})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["message"] == "query must contain non-whitespace text"
+
+
+@pytest.mark.asyncio
+async def test_search_trims_query_before_search(tmp_path: Path) -> None:
+    app, _ = _preindexed_app(tmp_path)
+    async with _client(app) as client:
+        response = await client.get("/search", params={"q": "  validate JWT token  ", "k": 5})
+
+    assert response.status_code == 200
+    assert response.json()["query"] == "validate JWT token"
+
+
+@pytest.mark.asyncio
 async def test_search_without_index_returns_friendly_503(tmp_path: Path) -> None:
     app = create_app(_settings(tmp_path))
     async with _client(app) as client:

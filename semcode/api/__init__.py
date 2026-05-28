@@ -273,10 +273,13 @@ def create_app(
     ) -> SearchResponse:
         """Search the loaded index and return ranked code chunks."""
         start = time.perf_counter()
+        query = q.strip()
+        if not query:
+            raise HTTPException(status_code=422, detail="query must contain non-whitespace text")
         try:
             if not _index_artifacts_exist(app_settings):
                 raise FileNotFoundError(_missing_index_message(app_settings))
-            results = app.state.searcher.search(q, k=k, use_reranker=use_reranker)
+            results = app.state.searcher.search(query, k=k, use_reranker=use_reranker)
             app.state.index_loaded = True
         except FileNotFoundError as exc:
             app.state.index_loaded = False
@@ -291,7 +294,7 @@ def create_app(
         latency = time.perf_counter() - start
         _SEARCH_LATENCY.labels(use_reranker=str(use_reranker).lower()).observe(latency)
         return SearchResponse(
-            query=q,
+            query=query,
             latency_ms=round(latency * 1000, 3),
             results=results,
         )
