@@ -266,6 +266,8 @@ class VectorStore:
         vec = np.ascontiguousarray(query_vec, dtype=np.float32)
         if vec.ndim == 1:
             vec = vec[np.newaxis, :]
+        if vec.ndim != 2 or vec.shape[0] != 1:
+            raise ValueError(f"Expected one query vector, got shape {vec.shape}")
 
         k_clamped = min(k, max(self._index.ntotal, 1))
         scores, indices = self._index.search(vec, k_clamped)
