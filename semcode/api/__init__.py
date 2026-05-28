@@ -540,7 +540,11 @@ def _read_index_manifest(settings: Settings) -> dict:
     manifest_path = settings.faiss_index_path.with_suffix(".json")
     if not manifest_path.exists():
         return {}
-    return json.loads(manifest_path.read_text(encoding="utf-8"))
+    try:
+        return json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        log.warning("failed to read index manifest", path=str(manifest_path), error=str(exc))
+        return {"error": f"failed to read manifest: {exc}"}
 
 
 def _update_index_size_metric(settings: Settings) -> None:
