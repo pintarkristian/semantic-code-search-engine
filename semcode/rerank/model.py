@@ -80,6 +80,10 @@ def train_reranker_model(
     batch_size: int = 16,
 ) -> dict[str, list[float]]:
     """Train and export the reranker SavedModel to ``settings.reranker_model_path``."""
+    if epochs <= 0:
+        raise ValueError("epochs must be positive")
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive")
     settings = settings or get_settings()
     df = pd.read_parquet(dataset_path)
     x_train, y_train, x_val, y_val = _split_xy(df)

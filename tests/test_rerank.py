@@ -111,6 +111,16 @@ def test_build_dataset_rejects_invalid_sampling_options(tmp_path: Path) -> None:
         build_reranker_dataset(labels_path, tmp_path / "dataset.parquet", negatives_per_query=-1)
 
 
+def test_train_model_rejects_invalid_training_options(tmp_path: Path) -> None:
+    dataset_path = tmp_path / "missing.parquet"
+
+    with pytest.raises(ValueError, match="epochs"):
+        train_reranker_model(dataset_path, epochs=0)
+
+    with pytest.raises(ValueError, match="batch_size"):
+        train_reranker_model(dataset_path, batch_size=0)
+
+
 def test_trained_toy_model_loads_and_scores_in_probability_range(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     features = build_features("validate token", _candidate_frame())
