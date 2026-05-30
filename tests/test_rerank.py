@@ -14,6 +14,7 @@ from semcode.index import IndexingPipeline
 from semcode.rerank import (
     FEATURE_COLUMNS,
     ReRanker,
+    add_labels,
     build_features,
     build_model,
     build_reranker_dataset,
@@ -72,6 +73,13 @@ def test_feature_builder_columns_are_stable() -> None:
     assert features.shape == (2, len(FEATURE_COLUMNS))
     assert features["lang_python"].tolist() == [1.0, 0.0]
     assert features["query_tokens_in_docstring"].tolist() == [1.0, 0.0]
+
+
+def test_add_labels_requires_chunk_id() -> None:
+    candidates = _candidate_frame().drop(columns=["chunk_id"])
+
+    with pytest.raises(ValueError, match="chunk_id"):
+        add_labels("validate token", candidates, ["a"])
 
 
 def test_load_labels_rejects_invalid_object_values(tmp_path: Path) -> None:
