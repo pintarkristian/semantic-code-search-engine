@@ -420,6 +420,18 @@ def test_update_rejects_wrong_add_vector_dimension(tmp_path: Path) -> None:
         )
 
 
+def test_update_requires_id_mapped_index(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+    with pytest.raises(RuntimeError, match="ID-mapped"):
+        store.update(
+            remove_ids=np.asarray([], dtype=np.int64),
+            add_vectors=_unit_vectors(1, seed=1),
+            add_ids=np.asarray([3], dtype=np.int64),
+        )
+
+
 # ---------------------------------------------------------------------------
 # IndexingPipeline
 # ---------------------------------------------------------------------------

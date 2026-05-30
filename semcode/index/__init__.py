@@ -151,6 +151,8 @@ class VectorStore:
         """Incrementally remove and add vectors by stable FAISS IDs."""
         if self._index is None or self._manifest is None:
             raise RuntimeError("Call load() or build() before update().")
+        if self._manifest.get("id_mapped") is not True:
+            raise RuntimeError("Incremental update requires an ID-mapped FAISS index.")
 
         remove_ids = np.ascontiguousarray(remove_ids, dtype=np.int64)
         add_vectors = np.ascontiguousarray(add_vectors, dtype=np.float32)
