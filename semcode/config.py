@@ -85,6 +85,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _validate_retrieval_weights(self) -> Settings:
+        # These fields interact at runtime: invalid combinations can produce
+        # empty or out-of-bounds rankings even though each value is valid alone.
         if self.dense_weight < 0 or self.bm25_weight < 0:
             raise ValueError("retrieval weights must be non-negative")
         if self.dense_weight + self.bm25_weight <= 0:

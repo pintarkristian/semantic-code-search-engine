@@ -151,6 +151,8 @@ class VectorStore:
         """Incrementally remove and add vectors by stable FAISS IDs."""
         if self._index is None or self._manifest is None:
             raise RuntimeError("Call load() or build() before update().")
+        # Incremental updates address FAISS vectors by explicit IDs, not by row
+        # position. A plain Flat/IVF index cannot safely remove and replace rows.
         if self._manifest.get("id_mapped") is not True:
             raise RuntimeError("Incremental update requires an ID-mapped FAISS index.")
 

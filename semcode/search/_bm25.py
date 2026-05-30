@@ -174,6 +174,8 @@ class BM25Retriever:
         with open(path, "rb") as f:
             payload = pickle.load(f)
         if isinstance(payload, dict):
+            # Current payloads store explicit FAISS IDs; older payloads were
+            # plain corpus lists and are handled by the compatibility branch.
             if "corpus" not in payload:
                 raise ValueError("BM25 corpus payload is missing 'corpus'")
             corpus: list[list[str]] = payload["corpus"]
