@@ -77,6 +77,11 @@ def test_invalid_log_level_rejected() -> None:
         Settings(log_level="verbose")
 
 
+def test_invalid_log_format_rejected() -> None:
+    with pytest.raises(ValidationError, match="log_format"):
+        Settings(log_format="plain")
+
+
 def test_get_settings_is_cached() -> None:
     # get_settings() is lru_cache(maxsize=1) — must return the same object
     a = get_settings()

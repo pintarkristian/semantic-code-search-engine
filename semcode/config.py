@@ -67,6 +67,14 @@ class Settings(BaseSettings):
             raise ValueError(f"log_level must be one of: {', '.join(sorted(allowed))}")
         return normalized
 
+    @field_validator("log_format")
+    @classmethod
+    def _validate_log_format(cls, value: str) -> str:
+        normalized = value.lower()
+        if normalized not in {"pretty", "json"}:
+            raise ValueError("log_format must be 'pretty' or 'json'")
+        return normalized
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
