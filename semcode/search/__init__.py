@@ -328,9 +328,9 @@ def format_results(results: list[SearchResult], query: str = "", verbose: bool =
 
     for r in results:
         if verbose:
-            score_str = (
-                f"score={r.fused_score:.4f}  " f"dense={r.dense_score:.4f}  bm25={r.bm25_score:.4f}"
-            )
+            score_str = f"score={r.score:.4f}  dense={r.dense_score:.4f}  bm25={r.bm25_score:.4f}"
+            if r.rerank_score is not None:
+                score_str += f"  fused={r.fused_score:.4f}"
         else:
             score_str = f"score={r.score:.4f}"
         header = (

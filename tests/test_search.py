@@ -329,6 +329,28 @@ class TestFormatResults:
         output = format_results(results)
         assert "score=" in output
 
+    def test_verbose_rerank_result_shows_rerank_as_score(self) -> None:
+        result = SearchResult(
+            rank=1,
+            score=0.9,
+            rerank_score=0.9,
+            dense_score=0.2,
+            bm25_score=1.5,
+            fused_score=0.03,
+            file_path="src/auth.py",
+            symbol_name="validate",
+            symbol_type="function",
+            language="python",
+            start_line=1,
+            end_line=2,
+            snippet="def validate(): pass",
+        )
+
+        output = format_results([result], verbose=True)
+
+        assert "score=0.9000" in output
+        assert "fused=0.0300" in output
+
     def test_query_shown_when_provided(self) -> None:
         results = self._sample_results()
         output = format_results(results, query="find auth")
