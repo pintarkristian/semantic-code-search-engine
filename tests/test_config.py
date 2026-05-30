@@ -72,6 +72,11 @@ def test_rate_limit_zero_disables_limiter() -> None:
     assert Settings(rate_limit_requests=0).rate_limit_requests == 0
 
 
+def test_invalid_log_level_rejected() -> None:
+    with pytest.raises(ValidationError, match="log_level"):
+        Settings(log_level="verbose")
+
+
 def test_get_settings_is_cached() -> None:
     # get_settings() is lru_cache(maxsize=1) — must return the same object
     a = get_settings()

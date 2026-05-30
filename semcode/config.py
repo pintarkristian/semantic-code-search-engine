@@ -58,6 +58,15 @@ class Settings(BaseSettings):
             return False
         return value
 
+    @field_validator("log_level")
+    @classmethod
+    def _validate_log_level(cls, value: str) -> str:
+        normalized = value.upper()
+        allowed = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+        if normalized not in allowed:
+            raise ValueError(f"log_level must be one of: {', '.join(sorted(allowed))}")
+        return normalized
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
