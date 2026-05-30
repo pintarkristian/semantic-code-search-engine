@@ -78,6 +78,11 @@ def test_port_must_not_exceed_tcp_range() -> None:
         Settings(port=65536)
 
 
+def test_host_must_not_be_blank() -> None:
+    with pytest.raises(ValidationError, match="host"):
+        Settings(host="   ")
+
+
 def test_invalid_log_level_rejected() -> None:
     with pytest.raises(ValidationError, match="log_level"):
         Settings(log_level="verbose")

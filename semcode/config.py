@@ -59,6 +59,13 @@ class Settings(BaseSettings):
             return False
         return value
 
+    @field_validator("host")
+    @classmethod
+    def _validate_host(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("host must contain non-whitespace text")
+        return value.strip()
+
     @field_validator("log_level")
     @classmethod
     def _validate_log_level(cls, value: str) -> str:
