@@ -15,6 +15,7 @@ from semcode.rerank import (
     FEATURE_COLUMNS,
     ReRanker,
     build_features,
+    build_model,
     build_reranker_dataset,
     load_labels,
     train_reranker_model,
@@ -119,6 +120,11 @@ def test_train_model_rejects_invalid_training_options(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="batch_size"):
         train_reranker_model(dataset_path, batch_size=0)
+
+
+def test_build_model_rejects_invalid_input_dim() -> None:
+    with pytest.raises(ValueError, match="input_dim"):
+        build_model(0)
 
 
 def test_trained_toy_model_loads_and_scores_in_probability_range(tmp_path: Path) -> None:
