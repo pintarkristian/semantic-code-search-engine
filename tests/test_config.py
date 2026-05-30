@@ -82,6 +82,11 @@ def test_invalid_log_format_rejected() -> None:
         Settings(log_format="plain")
 
 
+def test_invalid_embedding_device_rejected() -> None:
+    with pytest.raises(ValidationError, match="embedding_device"):
+        Settings(embedding_device="tpu")
+
+
 def test_get_settings_is_cached() -> None:
     # get_settings() is lru_cache(maxsize=1) — must return the same object
     a = get_settings()

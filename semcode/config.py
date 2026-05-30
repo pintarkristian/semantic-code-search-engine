@@ -75,6 +75,14 @@ class Settings(BaseSettings):
             raise ValueError("log_format must be 'pretty' or 'json'")
         return normalized
 
+    @field_validator("embedding_device")
+    @classmethod
+    def _validate_embedding_device(cls, value: str) -> str:
+        normalized = value.lower()
+        if normalized not in {"cpu", "cuda"}:
+            raise ValueError("embedding_device must be 'cpu' or 'cuda'")
+        return normalized
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
