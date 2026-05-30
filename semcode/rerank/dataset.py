@@ -29,8 +29,10 @@ def load_labels(path: Path) -> dict[str, list[str]]:
         for query, chunk_ids in raw.items():
             if isinstance(chunk_ids, str):
                 labels[str(query)] = [chunk_ids]
-            else:
+            elif isinstance(chunk_ids, list):
                 labels[str(query)] = [str(chunk_id) for chunk_id in chunk_ids]
+            else:
+                raise ValueError("Label values must be strings or lists of chunk IDs.")
         return labels
 
     if isinstance(raw, list):
