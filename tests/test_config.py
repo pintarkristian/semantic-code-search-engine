@@ -97,6 +97,11 @@ def test_all_zero_retrieval_weights_rejected() -> None:
         Settings(dense_weight=0.0, bm25_weight=0.0)
 
 
+def test_default_return_must_not_exceed_search_limit() -> None:
+    with pytest.raises(ValidationError, match="top_k_return"):
+        Settings(top_k_return=20, max_search_k=10)
+
+
 def test_get_settings_is_cached() -> None:
     # get_settings() is lru_cache(maxsize=1) — must return the same object
     a = get_settings()

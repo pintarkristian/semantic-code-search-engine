@@ -89,6 +89,8 @@ class Settings(BaseSettings):
             raise ValueError("retrieval weights must be non-negative")
         if self.dense_weight + self.bm25_weight <= 0:
             raise ValueError("at least one retrieval weight must be positive")
+        if self.top_k_return > self.max_search_k:
+            raise ValueError("top_k_return must be less than or equal to max_search_k")
         return self
 
 
