@@ -384,6 +384,10 @@ class TestBM25Retriever:
         bm25 = BM25Retriever([["alpha"], ["beta"]])
         assert bm25.search("alpha", k=0) == []
 
+    def test_rejects_mismatched_doc_ids(self) -> None:
+        with pytest.raises(ValueError, match="doc_ids"):
+            BM25Retriever([["alpha"], ["beta"]], doc_ids=[10])
+
     def test_scores_descending(self) -> None:
         corpus = [
             ["foo"],

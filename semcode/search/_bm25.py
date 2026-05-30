@@ -67,6 +67,8 @@ class BM25Retriever:
     def __init__(self, corpus: list[list[str]], *, doc_ids: list[int] | None = None) -> None:
         self._corpus = corpus
         self._doc_ids = doc_ids or list(range(len(corpus)))
+        if len(self._doc_ids) != len(corpus):
+            raise ValueError(f"Expected {len(corpus)} doc_ids, got {len(self._doc_ids)}")
         self._bm25: BM25Okapi | None = BM25Okapi(corpus) if corpus else None
 
     @property
