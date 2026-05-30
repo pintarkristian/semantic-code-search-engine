@@ -90,6 +90,11 @@ def test_build_flat_index(tmp_path: Path) -> None:
     assert store.ntotal == 50
 
 
+def test_vector_store_rejects_invalid_ivf_threshold(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="ivf_threshold"):
+        VectorStore(_settings(tmp_path), ivf_threshold=0)
+
+
 def test_build_sets_manifest(tmp_path: Path) -> None:
     vecs = _unit_vectors(10)
     store = VectorStore(_settings(tmp_path))

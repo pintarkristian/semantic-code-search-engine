@@ -69,6 +69,8 @@ class VectorStore:
         ivf_threshold: int = _IVF_THRESHOLD_DEFAULT,
     ) -> None:
         self.settings = settings or get_settings()
+        if ivf_threshold <= 0:
+            raise ValueError("ivf_threshold must be positive")
         self.ivf_threshold = ivf_threshold
         self._index: faiss.Index | None = None
         self._manifest: dict | None = None
