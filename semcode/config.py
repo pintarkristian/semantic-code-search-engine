@@ -6,7 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PositiveFloat = Annotated[float, Field(gt=0)]
@@ -82,6 +82,14 @@ class Settings(BaseSettings):
         if normalized not in {"cpu", "cuda"}:
             raise ValueError("embedding_device must be 'cpu' or 'cuda'")
         return normalized
+
+    @model_validator(mode="after")
+    def _validate_retrieval_weights(self) -> Settings:
+        if self.dense_weight < 0 or self.bm25_weight < 0:
+            raise ValueError("retrieval weights must be non-negative")
+        if self.dense_weight + self.bm25_weight <= 0:
+            raise ValueError("at least one retrieval weight must be positive")
+        return self
 
 
 @lru_cache(maxsize=1)

@@ -87,6 +87,16 @@ def test_invalid_embedding_device_rejected() -> None:
         Settings(embedding_device="tpu")
 
 
+def test_negative_retrieval_weight_rejected() -> None:
+    with pytest.raises(ValidationError, match="non-negative"):
+        Settings(dense_weight=-0.1)
+
+
+def test_all_zero_retrieval_weights_rejected() -> None:
+    with pytest.raises(ValidationError, match="at least one retrieval weight"):
+        Settings(dense_weight=0.0, bm25_weight=0.0)
+
+
 def test_get_settings_is_cached() -> None:
     # get_settings() is lru_cache(maxsize=1) — must return the same object
     a = get_settings()
