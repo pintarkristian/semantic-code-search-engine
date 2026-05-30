@@ -330,6 +330,8 @@ def format_results(results: list[SearchResult], query: str = "", verbose: bool =
         if verbose:
             score_str = f"score={r.score:.4f}  dense={r.dense_score:.4f}  bm25={r.bm25_score:.4f}"
             if r.rerank_score is not None:
+                # In reranked output, score is the learned score; fused remains
+                # useful as retrieval context when debugging ranking changes.
                 score_str += f"  fused={r.fused_score:.4f}"
         else:
             score_str = f"score={r.score:.4f}"

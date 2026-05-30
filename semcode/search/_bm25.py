@@ -65,6 +65,8 @@ class BM25Retriever:
     """
 
     def __init__(self, corpus: list[list[str]], *, doc_ids: list[int] | None = None) -> None:
+        # BM25Okapi expects a sequence of token sequences. Validate this before
+        # construction so malformed persisted corpora fail with our error text.
         for doc in corpus:
             if not isinstance(doc, list):
                 raise ValueError("BM25 corpus documents must be token lists")
