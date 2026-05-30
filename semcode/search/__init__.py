@@ -178,6 +178,9 @@ class Searcher:
 
     def candidates(self, query: str, k: int | None = None) -> pd.DataFrame:
         """Return hybrid candidates with scores and metadata, sorted by fused score."""
+        query = query.strip()
+        if not query:
+            raise ValueError("query must contain non-whitespace text")
         self._ensure_loaded()
         if self._store is None or self._bm25 is None or self._meta is None:
             raise RuntimeError("Searcher failed to load index artifacts.")

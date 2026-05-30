@@ -196,6 +196,12 @@ class TestSearcher:
         assert len(searcher.search("x", k=3)) <= 3
         assert len(searcher.search("x", k=1)) <= 1
 
+    def test_blank_query_rejected(self, tmp_path: Path) -> None:
+        settings, embedder, _ = _build_index(tmp_path)
+        searcher = Searcher(settings, embedder=embedder)
+        with pytest.raises(ValueError, match="non-whitespace"):
+            searcher.search("   ")
+
     def test_default_k_from_settings(self, tmp_path: Path) -> None:
         settings, embedder, _ = _build_index(tmp_path, n=12)
         # top_k_return=5 in _settings helper
