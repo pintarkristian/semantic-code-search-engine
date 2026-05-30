@@ -70,7 +70,7 @@ def search(
     searcher = Searcher(s)
     try:
         results = searcher.search(query, k=k, use_reranker=use_reranker)
-    except FileNotFoundError as exc:
+    except (FileNotFoundError, ValueError) as exc:
         typer.echo(f"[semcode] error: {exc}", err=True)
         raise typer.Exit(1)
     typer.echo(format_results(results, query=query))
