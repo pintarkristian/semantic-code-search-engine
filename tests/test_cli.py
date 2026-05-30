@@ -73,6 +73,12 @@ def test_search_k_option_is_recognized(tmp_path: Path, monkeypatch: pytest.Monke
     assert "No such option" not in (result.output or "")
 
 
+def test_search_rejects_non_positive_k() -> None:
+    result = runner.invoke(app, ["search", "find auth handler", "--k", "0"])
+    assert result.exit_code != 0
+    assert "Invalid value" in result.output
+
+
 def test_search_validation_error_is_user_friendly(monkeypatch: pytest.MonkeyPatch) -> None:
     class _FakeSearcher:
         def __init__(self, settings) -> None:

@@ -57,7 +57,7 @@ def index(
 @app.command()
 def search(
     query: str = typer.Argument(..., help="Natural-language search query."),
-    k: int = typer.Option(10, "--k", "-k", help="Number of results to return."),
+    k: int = typer.Option(10, "--k", "-k", min=1, help="Number of results to return."),
     use_reranker: bool = typer.Option(True, "--reranker/--no-reranker", help="Apply TF re-ranker."),
 ) -> None:
     """Search the current index using a natural-language query."""
