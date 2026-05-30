@@ -11,7 +11,14 @@ import pytest
 from semcode.config import Settings
 from semcode.embed import Embedder
 from semcode.index import IndexingPipeline
-from semcode.rerank import FEATURE_COLUMNS, ReRanker, build_features, load_labels, train_reranker_model
+from semcode.rerank import (
+    FEATURE_COLUMNS,
+    ReRanker,
+    build_features,
+    build_reranker_dataset,
+    load_labels,
+    train_reranker_model,
+)
 from semcode.search import Searcher
 from tests.conftest import MockSentenceTransformer
 
@@ -91,6 +98,17 @@ def test_load_labels_rejects_blank_queries(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="Label queries"):
         load_labels(labels_path)
+
+
+def test_build_dataset_rejects_invalid_sampling_options(tmp_path: Path) -> None:
+    labels_path = tmp_path / "labels.json"
+    labels_path.write_text(json.dumps({"validate token": ["chunk-1"]}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="candidates_per_query"):
+        build_reranker_dataset(labels_path, tmp_path / "dataset.parquet", candidates_per_query=0)
+
+    with pytest.raises(ValueError, match="negatives_per_query"):
+        build_reranker_dataset(labels_path, tmp_path / "dataset.parquet", negatives_per_query=-1)
 
 
 def test_trained_toy_model_loads_and_scores_in_probability_range(tmp_path: Path) -> None:
