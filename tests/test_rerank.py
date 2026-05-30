@@ -2,14 +2,25 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from semcode.config import Settings
 from semcode.embed import Embedder
 from semcode.index import IndexingPipeline
-from semcode.rerank import FEATURE_COLUMNS, ReRanker, build_features, train_reranker_model
+from semcode.rerank import (
+    FEATURE_COLUMNS,
+    ReRanker,
+    add_labels,
+    build_features,
+    build_model,
+    build_reranker_dataset,
+    load_labels,
+    train_reranker_model,
+)
 from semcode.search import Searcher
 from tests.conftest import MockSentenceTransformer
 
@@ -62,6 +73,66 @@ def test_feature_builder_columns_are_stable() -> None:
     assert features.shape == (2, len(FEATURE_COLUMNS))
     assert features["lang_python"].tolist() == [1.0, 0.0]
     assert features["query_tokens_in_docstring"].tolist() == [1.0, 0.0]
+
+
+def test_add_labels_requires_chunk_id() -> None:
+    candidates = _candidate_frame().drop(columns=["chunk_id"])
+
+    with pytest.raises(ValueError, match="chunk_id"):
+        add_labels("validate token", candidates, ["a"])
+
+
+def test_load_labels_rejects_invalid_object_values(tmp_path: Path) -> None:
+    labels_path = tmp_path / "labels.json"
+    labels_path.write_text(json.dumps({"query": 123}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="strings or lists"):
+        load_labels(labels_path)
+
+
+def test_load_labels_rejects_invalid_list_entry_values(tmp_path: Path) -> None:
+    labels_path = tmp_path / "labels.json"
+    labels_path.write_text(
+        json.dumps([{"query": "validate token", "relevant_chunk_ids": 123}]),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="string or list"):
+        load_labels(labels_path)
+
+
+def test_load_labels_rejects_blank_queries(tmp_path: Path) -> None:
+    labels_path = tmp_path / "labels.json"
+    labels_path.write_text(json.dumps({"   ": ["chunk-1"]}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Label queries"):
+        load_labels(labels_path)
+
+
+def test_build_dataset_rejects_invalid_sampling_options(tmp_path: Path) -> None:
+    labels_path = tmp_path / "labels.json"
+    labels_path.write_text(json.dumps({"validate token": ["chunk-1"]}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="candidates_per_query"):
+        build_reranker_dataset(labels_path, tmp_path / "dataset.parquet", candidates_per_query=0)
+
+    with pytest.raises(ValueError, match="negatives_per_query"):
+        build_reranker_dataset(labels_path, tmp_path / "dataset.parquet", negatives_per_query=-1)
+
+
+def test_train_model_rejects_invalid_training_options(tmp_path: Path) -> None:
+    dataset_path = tmp_path / "missing.parquet"
+
+    with pytest.raises(ValueError, match="epochs"):
+        train_reranker_model(dataset_path, epochs=0)
+
+    with pytest.raises(ValueError, match="batch_size"):
+        train_reranker_model(dataset_path, batch_size=0)
+
+
+def test_build_model_rejects_invalid_input_dim() -> None:
+    with pytest.raises(ValueError, match="input_dim"):
+        build_model(0)
 
 
 def test_trained_toy_model_loads_and_scores_in_probability_range(tmp_path: Path) -> None:

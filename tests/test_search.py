@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pickle
 from pathlib import Path
 
 import pandas as pd
@@ -195,6 +196,53 @@ class TestSearcher:
         assert len(searcher.search("x", k=3)) <= 3
         assert len(searcher.search("x", k=1)) <= 1
 
+    def test_blank_query_rejected(self, tmp_path: Path) -> None:
+        settings, embedder, _ = _build_index(tmp_path)
+        searcher = Searcher(settings, embedder=embedder)
+        with pytest.raises(ValueError, match="non-whitespace"):
+            searcher.search("   ")
+
+    def test_candidates_rejects_non_positive_k(self, tmp_path: Path) -> None:
+        settings, embedder, _ = _build_index(tmp_path)
+        searcher = Searcher(settings, embedder=embedder)
+        with pytest.raises(ValueError, match="k must be positive"):
+            searcher.candidates("function", k=0)
+
+    def test_search_trims_query_before_rerank(self, tmp_path: Path) -> None:
+        settings = _settings(tmp_path)
+        searcher = Searcher(settings, embedder=_mock_embedder(settings))
+        seen: dict[str, str] = {}
+
+        def fake_candidates(query: str):
+            return pd.DataFrame(
+                [
+                    {
+                        "chunk_id": "chunk-1",
+                        "file_path": "src/auth.py",
+                        "symbol_name": "validate",
+                        "symbol_type": "function",
+                        "language": "python",
+                        "start_line": 1,
+                        "end_line": 2,
+                        "code": "def validate(): pass",
+                        "dense_score": 0.5,
+                        "bm25_score": 0.0,
+                        "fused_score": 0.25,
+                    }
+                ]
+            )
+
+        def fake_rerank(query: str, candidates: pd.DataFrame, use_reranker: bool):
+            seen["query"] = query
+            return candidates
+
+        searcher.candidates = fake_candidates  # type: ignore[method-assign]
+        searcher._maybe_rerank = fake_rerank  # type: ignore[method-assign]
+
+        searcher.search("  validate token  ", k=1)
+
+        assert seen["query"] == "validate token"
+
     def test_default_k_from_settings(self, tmp_path: Path) -> None:
         settings, embedder, _ = _build_index(tmp_path, n=12)
         # top_k_return=5 in _settings helper
@@ -280,6 +328,28 @@ class TestFormatResults:
         results = self._sample_results()
         output = format_results(results)
         assert "score=" in output
+
+    def test_verbose_rerank_result_shows_rerank_as_score(self) -> None:
+        result = SearchResult(
+            rank=1,
+            score=0.9,
+            rerank_score=0.9,
+            dense_score=0.2,
+            bm25_score=1.5,
+            fused_score=0.03,
+            file_path="src/auth.py",
+            symbol_name="validate",
+            symbol_type="function",
+            language="python",
+            start_line=1,
+            end_line=2,
+            snippet="def validate(): pass",
+        )
+
+        output = format_results([result], verbose=True)
+
+        assert "score=0.9000" in output
+        assert "fused=0.0300" in output
 
     def test_query_shown_when_provided(self) -> None:
         results = self._sample_results()
@@ -370,6 +440,14 @@ class TestBM25Retriever:
         assert loaded._corpus == corpus
         assert bm25.search("foo", k=2) == loaded.search("foo", k=2)
 
+    def test_load_rejects_payload_without_corpus(self, tmp_path: Path) -> None:
+        path = tmp_path / "corpus.pkl"
+        with open(path, "wb") as f:
+            pickle.dump({"doc_ids": [1, 2]}, f)
+
+        with pytest.raises(ValueError, match="missing 'corpus'"):
+            BM25Retriever.load(path)
+
     def test_empty_corpus(self) -> None:
         bm25 = BM25Retriever([])
         assert bm25.search("anything", k=5) == []
@@ -383,6 +461,14 @@ class TestBM25Retriever:
     def test_non_positive_k_returns_no_hits(self) -> None:
         bm25 = BM25Retriever([["alpha"], ["beta"]])
         assert bm25.search("alpha", k=0) == []
+
+    def test_rejects_mismatched_doc_ids(self) -> None:
+        with pytest.raises(ValueError, match="doc_ids"):
+            BM25Retriever([["alpha"], ["beta"]], doc_ids=[10])
+
+    def test_rejects_non_list_documents(self) -> None:
+        with pytest.raises(ValueError, match="token lists"):
+            BM25Retriever([["alpha"], "beta"])  # type: ignore[list-item]
 
     def test_scores_descending(self) -> None:
         corpus = [

@@ -52,6 +52,8 @@ def _split_xy(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.
 
 def build_model(input_dim: int) -> Any:
     """Create the compact Keras MLP used by the reranker."""
+    if input_dim <= 0:
+        raise ValueError("input_dim must be positive")
     tf = _import_tf()
     inputs = tf.keras.Input(shape=(input_dim,), name="features")
     x = tf.keras.layers.Normalization(name="feature_normalization")(inputs)
@@ -80,6 +82,10 @@ def train_reranker_model(
     batch_size: int = 16,
 ) -> dict[str, list[float]]:
     """Train and export the reranker SavedModel to ``settings.reranker_model_path``."""
+    if epochs <= 0:
+        raise ValueError("epochs must be positive")
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive")
     settings = settings or get_settings()
     df = pd.read_parquet(dataset_path)
     x_train, y_train, x_val, y_val = _split_xy(df)

@@ -375,6 +375,18 @@ def test_ingestor_rejects_non_positive_window_stride(tmp_path: Path) -> None:
         CodeIngestor(repo, _settings(tmp_path), window_stride=0)
 
 
+def test_ingestor_rejects_missing_repo_path(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="Repository path does not exist"):
+        CodeIngestor(tmp_path / "missing", _settings(tmp_path))
+
+
+def test_ingestor_rejects_file_repo_path(tmp_path: Path) -> None:
+    repo_file = tmp_path / "repo.py"
+    repo_file.write_text("def f(): pass\n")
+    with pytest.raises(NotADirectoryError, match="not a directory"):
+        CodeIngestor(repo_file, _settings(tmp_path))
+
+
 # ---------------------------------------------------------------------------
 # Convenience wrapper
 # ---------------------------------------------------------------------------

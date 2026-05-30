@@ -179,6 +179,23 @@ async def test_metrics_endpoint_exposes_prometheus_metrics(tmp_path: Path) -> No
 
 
 @pytest.mark.asyncio
+async def test_cors_wildcard_does_not_allow_credentials(tmp_path: Path) -> None:
+    app = create_app(_settings(tmp_path))
+    async with _client(app) as client:
+        response = await client.options(
+            "/health",
+            headers={
+                "origin": "https://example.test",
+                "access-control-request-method": "GET",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "*"
+    assert "access-control-allow-credentials" not in response.headers
+
+
+@pytest.mark.asyncio
 async def test_search_returns_ranked_results_against_fixture(tmp_path: Path) -> None:
     app, _ = _preindexed_app(tmp_path)
     async with _client(app) as client:

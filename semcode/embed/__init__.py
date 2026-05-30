@@ -220,23 +220,30 @@ class EmbeddingCache:
             return
 
         vectors = payload.get("vectors", {})
-        if isinstance(vectors, dict):
-            loaded: dict[str, np.ndarray] = {}
-            skipped = 0
-            for key, value in vectors.items():
-                vector = np.asarray(value, dtype=np.float32)
-                if vector.shape != (self.dimension,):
-                    skipped += 1
-                    continue
-                loaded[str(key)] = vector
-            self._vectors = loaded
-            log.info("loaded embedding cache", path=str(self.path), entries=len(self._vectors))
-            if skipped:
-                log.warning(
-                    "ignored embedding cache entries with invalid dimensions",
-                    path=str(self.path),
-                    skipped=skipped,
-                )
+        if not isinstance(vectors, dict):
+            log.warning(
+                "ignoring embedding cache with malformed vectors",
+                path=str(self.path),
+                vectors_type=type(vectors).__name__,
+            )
+            return
+
+        loaded: dict[str, np.ndarray] = {}
+        skipped = 0
+        for key, value in vectors.items():
+            vector = np.asarray(value, dtype=np.float32)
+            if vector.shape != (self.dimension,):
+                skipped += 1
+                continue
+            loaded[str(key)] = vector
+        self._vectors = loaded
+        log.info("loaded embedding cache", path=str(self.path), entries=len(self._vectors))
+        if skipped:
+            log.warning(
+                "ignored embedding cache entries with invalid dimensions",
+                path=str(self.path),
+                skipped=skipped,
+            )
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)

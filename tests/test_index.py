@@ -90,6 +90,11 @@ def test_build_flat_index(tmp_path: Path) -> None:
     assert store.ntotal == 50
 
 
+def test_vector_store_rejects_invalid_ivf_threshold(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="ivf_threshold"):
+        VectorStore(_settings(tmp_path), ivf_threshold=0)
+
+
 def test_build_sets_manifest(tmp_path: Path) -> None:
     vecs = _unit_vectors(10)
     store = VectorStore(_settings(tmp_path))
@@ -420,6 +425,18 @@ def test_update_rejects_wrong_add_vector_dimension(tmp_path: Path) -> None:
         )
 
 
+def test_update_requires_id_mapped_index(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+    with pytest.raises(RuntimeError, match="ID-mapped"):
+        store.update(
+            remove_ids=np.asarray([], dtype=np.int64),
+            add_vectors=_unit_vectors(1, seed=1),
+            add_ids=np.asarray([3], dtype=np.int64),
+        )
+
+
 # ---------------------------------------------------------------------------
 # IndexingPipeline
 # ---------------------------------------------------------------------------
@@ -430,6 +447,12 @@ def test_pipeline_produces_parquet(tmp_path: Path) -> None:
     pipeline = IndexingPipeline(s, embedder=_mock_embedder(s))
     pipeline.run(FIXTURE_REPO)
     assert s.metadata_path.exists()
+
+
+def test_pipeline_rejects_invalid_ivf_threshold(tmp_path: Path) -> None:
+    s = _settings(tmp_path)
+    with pytest.raises(ValueError, match="ivf_threshold"):
+        IndexingPipeline(s, embedder=_mock_embedder(s), ivf_threshold=0)
 
 
 def test_pipeline_produces_faiss_index(tmp_path: Path) -> None:

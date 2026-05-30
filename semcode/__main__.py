@@ -57,7 +57,7 @@ def index(
 @app.command()
 def search(
     query: str = typer.Argument(..., help="Natural-language search query."),
-    k: int = typer.Option(10, "--k", "-k", help="Number of results to return."),
+    k: int = typer.Option(10, "--k", "-k", min=1, help="Number of results to return."),
     use_reranker: bool = typer.Option(True, "--reranker/--no-reranker", help="Apply TF re-ranker."),
 ) -> None:
     """Search the current index using a natural-language query."""
@@ -70,7 +70,7 @@ def search(
     searcher = Searcher(s)
     try:
         results = searcher.search(query, k=k, use_reranker=use_reranker)
-    except FileNotFoundError as exc:
+    except (FileNotFoundError, ValueError) as exc:
         typer.echo(f"[semcode] error: {exc}", err=True)
         raise typer.Exit(1)
     typer.echo(format_results(results, query=query))
@@ -102,10 +102,11 @@ def train_reranker(
         "--dataset",
         help="Where to write/read the generated feature parquet.",
     ),
-    epochs: int = typer.Option(20, "--epochs", "-e", help="Training epochs."),
+    epochs: int = typer.Option(20, "--epochs", "-e", min=1, help="Training epochs."),
     negatives_per_query: int = typer.Option(
         8,
         "--negatives-per-query",
+        min=0,
         help="Number of fused non-relevant candidates to keep per query.",
     ),
 ) -> None:

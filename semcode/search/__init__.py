@@ -178,6 +178,11 @@ class Searcher:
 
     def candidates(self, query: str, k: int | None = None) -> pd.DataFrame:
         """Return hybrid candidates with scores and metadata, sorted by fused score."""
+        query = query.strip()
+        if not query:
+            raise ValueError("query must contain non-whitespace text")
+        if k is not None and k <= 0:
+            raise ValueError("k must be positive")
         self._ensure_loaded()
         if self._store is None or self._bm25 is None or self._meta is None:
             raise RuntimeError("Searcher failed to load index artifacts.")
@@ -244,6 +249,9 @@ class Searcher:
         Returns:
             List of SearchResult sorted by fused_score descending.
         """
+        query = query.strip()
+        if not query:
+            raise ValueError("query must contain non-whitespace text")
         k = k if k is not None else self.settings.top_k_return
         reranker_enabled = self.settings.use_reranker if use_reranker is None else use_reranker
         candidates = self.candidates(query)
@@ -320,9 +328,11 @@ def format_results(results: list[SearchResult], query: str = "", verbose: bool =
 
     for r in results:
         if verbose:
-            score_str = (
-                f"score={r.fused_score:.4f}  " f"dense={r.dense_score:.4f}  bm25={r.bm25_score:.4f}"
-            )
+            score_str = f"score={r.score:.4f}  dense={r.dense_score:.4f}  bm25={r.bm25_score:.4f}"
+            if r.rerank_score is not None:
+                # In reranked output, score is the learned score; fused remains
+                # useful as retrieval context when debugging ranking changes.
+                score_str += f"  fused={r.fused_score:.4f}"
         else:
             score_str = f"score={r.score:.4f}"
         header = (

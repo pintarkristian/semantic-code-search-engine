@@ -73,6 +73,8 @@ def add_labels(
     relevant_chunk_ids: Iterable[str],
 ) -> pd.DataFrame:
     """Return feature rows plus label and lightweight candidate metadata."""
+    if "chunk_id" not in candidates.columns:
+        raise ValueError("candidates must include a chunk_id column")
     relevant = {str(chunk_id) for chunk_id in relevant_chunk_ids}
     features = build_features(query, candidates)
     labeled = features.copy()

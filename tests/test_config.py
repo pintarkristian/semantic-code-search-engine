@@ -55,6 +55,7 @@ def test_path_fields_are_path_objects(monkeypatch: pytest.MonkeyPatch) -> None:
         ("request_timeout_seconds", 0),
         ("rate_limit_requests", -1),
         ("rate_limit_window_seconds", 0),
+        ("port", 0),
         ("batch_size", 0),
         ("max_chunk_tokens", 0),
         ("top_k_retrieve", 0),
@@ -70,6 +71,46 @@ def test_operational_limits_must_be_positive(field: str, value: int) -> None:
 
 def test_rate_limit_zero_disables_limiter() -> None:
     assert Settings(rate_limit_requests=0).rate_limit_requests == 0
+
+
+def test_port_must_not_exceed_tcp_range() -> None:
+    with pytest.raises(ValidationError):
+        Settings(port=65536)
+
+
+def test_host_must_not_be_blank() -> None:
+    with pytest.raises(ValidationError, match="host"):
+        Settings(host="   ")
+
+
+def test_invalid_log_level_rejected() -> None:
+    with pytest.raises(ValidationError, match="log_level"):
+        Settings(log_level="verbose")
+
+
+def test_invalid_log_format_rejected() -> None:
+    with pytest.raises(ValidationError, match="log_format"):
+        Settings(log_format="plain")
+
+
+def test_invalid_embedding_device_rejected() -> None:
+    with pytest.raises(ValidationError, match="embedding_device"):
+        Settings(embedding_device="tpu")
+
+
+def test_negative_retrieval_weight_rejected() -> None:
+    with pytest.raises(ValidationError, match="non-negative"):
+        Settings(dense_weight=-0.1)
+
+
+def test_all_zero_retrieval_weights_rejected() -> None:
+    with pytest.raises(ValidationError, match="at least one retrieval weight"):
+        Settings(dense_weight=0.0, bm25_weight=0.0)
+
+
+def test_default_return_must_not_exceed_search_limit() -> None:
+    with pytest.raises(ValidationError, match="top_k_return"):
+        Settings(top_k_return=20, max_search_k=10)
 
 
 def test_get_settings_is_cached() -> None:

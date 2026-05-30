@@ -27,10 +27,13 @@ def load_labels(path: Path) -> dict[str, list[str]]:
     if isinstance(raw, dict):
         labels: dict[str, list[str]] = {}
         for query, chunk_ids in raw.items():
+            query_text = _label_query_text(query)
             if isinstance(chunk_ids, str):
-                labels[str(query)] = [chunk_ids]
+                labels[query_text] = [chunk_ids]
+            elif isinstance(chunk_ids, list):
+                labels[query_text] = [str(chunk_id) for chunk_id in chunk_ids]
             else:
-                labels[str(query)] = [str(chunk_id) for chunk_id in chunk_ids]
+                raise ValueError("Label values must be strings or lists of chunk IDs.")
         return labels
 
     if isinstance(raw, list):
@@ -38,13 +41,25 @@ def load_labels(path: Path) -> dict[str, list[str]]:
         for item in raw:
             if not isinstance(item, dict) or "query" not in item:
                 raise ValueError("Label list entries must contain a 'query' field.")
+            query_text = _label_query_text(item["query"])
             chunk_ids = item.get("relevant_chunk_ids", item.get("relevant", []))
             if isinstance(chunk_ids, str):
                 chunk_ids = [chunk_ids]
-            labels[str(item["query"])] = [str(chunk_id) for chunk_id in chunk_ids]
+            elif not isinstance(chunk_ids, list):
+                raise ValueError("Label entry relevant IDs must be a string or list.")
+            labels[query_text] = [str(chunk_id) for chunk_id in chunk_ids]
         return labels
 
     raise ValueError("Labels JSON must be an object or list.")
+
+
+def _label_query_text(value: object) -> str:
+    # Labels are keyed by the exact query text used for candidate retrieval, so
+    # normalize once here instead of letting dict/list label formats diverge.
+    query = str(value).strip()
+    if not query:
+        raise ValueError("Label queries must contain non-whitespace text.")
+    return query
 
 
 def build_reranker_dataset(
@@ -57,6 +72,10 @@ def build_reranker_dataset(
 ) -> pd.DataFrame:
     """Retrieve hybrid candidates, label positives/negatives, and save parquet."""
     settings = settings or get_settings()
+    if candidates_per_query is not None and candidates_per_query <= 0:
+        raise ValueError("candidates_per_query must be positive")
+    if negatives_per_query < 0:
+        raise ValueError("negatives_per_query must be non-negative")
     labels = load_labels(labels_path)
     if not labels:
         raise ValueError(f"No labels found in {labels_path}")

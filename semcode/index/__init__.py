@@ -69,6 +69,8 @@ class VectorStore:
         ivf_threshold: int = _IVF_THRESHOLD_DEFAULT,
     ) -> None:
         self.settings = settings or get_settings()
+        if ivf_threshold <= 0:
+            raise ValueError("ivf_threshold must be positive")
         self.ivf_threshold = ivf_threshold
         self._index: faiss.Index | None = None
         self._manifest: dict | None = None
@@ -151,6 +153,10 @@ class VectorStore:
         """Incrementally remove and add vectors by stable FAISS IDs."""
         if self._index is None or self._manifest is None:
             raise RuntimeError("Call load() or build() before update().")
+        # Incremental updates address FAISS vectors by explicit IDs, not by row
+        # position. A plain Flat/IVF index cannot safely remove and replace rows.
+        if self._manifest.get("id_mapped") is not True:
+            raise RuntimeError("Incremental update requires an ID-mapped FAISS index.")
 
         remove_ids = np.ascontiguousarray(remove_ids, dtype=np.int64)
         add_vectors = np.ascontiguousarray(add_vectors, dtype=np.float32)
@@ -333,6 +339,8 @@ class IndexingPipeline:
     ) -> None:
         self.settings = settings or get_settings()
         self._embedder = embedder  # None = build lazily on first run
+        if ivf_threshold <= 0:
+            raise ValueError("ivf_threshold must be positive")
         self.ivf_threshold = ivf_threshold
         self.last_stats: dict[str, int | float | bool] = {}
 

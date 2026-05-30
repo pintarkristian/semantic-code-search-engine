@@ -73,6 +73,26 @@ def test_search_k_option_is_recognized(tmp_path: Path, monkeypatch: pytest.Monke
     assert "No such option" not in (result.output or "")
 
 
+def test_search_rejects_non_positive_k() -> None:
+    result = runner.invoke(app, ["search", "find auth handler", "--k", "0"])
+    assert result.exit_code != 0
+    assert "Invalid value" in result.output
+
+
+def test_search_validation_error_is_user_friendly(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _FakeSearcher:
+        def __init__(self, settings) -> None:
+            self.settings = settings
+
+        def search(self, query: str, k: int, use_reranker: bool):
+            raise ValueError("query must contain non-whitespace text")
+
+    monkeypatch.setattr("semcode.search.Searcher", _FakeSearcher)
+    result = runner.invoke(app, ["search", "   "])
+    assert result.exit_code == 1
+    assert "[semcode] error: query must contain non-whitespace text" in result.output
+
+
 def test_serve_starts_uvicorn(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = []
     monkeypatch.setattr("uvicorn.run", lambda *args, **kwargs: calls.append((args, kwargs)))
@@ -101,3 +121,19 @@ def test_train_reranker_stub(tmp_path: Path) -> None:
     result = runner.invoke(app, ["train-reranker", str(labels)])
     assert result.exit_code == 0
     assert "not yet implemented" in result.output
+
+
+def test_train_reranker_rejects_non_positive_epochs(tmp_path: Path) -> None:
+    labels = tmp_path / "labels.json"
+    labels.write_text("{}")
+    result = runner.invoke(app, ["train-reranker", str(labels), "--epochs", "0"])
+    assert result.exit_code != 0
+    assert "Invalid value" in result.output
+
+
+def test_train_reranker_rejects_negative_negatives(tmp_path: Path) -> None:
+    labels = tmp_path / "labels.json"
+    labels.write_text("{}")
+    result = runner.invoke(app, ["train-reranker", str(labels), "--negatives-per-query", "-1"])
+    assert result.exit_code != 0
+    assert "Invalid value" in result.output

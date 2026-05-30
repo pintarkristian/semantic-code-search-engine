@@ -65,8 +65,15 @@ class BM25Retriever:
     """
 
     def __init__(self, corpus: list[list[str]], *, doc_ids: list[int] | None = None) -> None:
+        # BM25Okapi expects a sequence of token sequences. Validate this before
+        # construction so malformed persisted corpora fail with our error text.
+        for doc in corpus:
+            if not isinstance(doc, list):
+                raise ValueError("BM25 corpus documents must be token lists")
         self._corpus = corpus
         self._doc_ids = doc_ids or list(range(len(corpus)))
+        if len(self._doc_ids) != len(corpus):
+            raise ValueError(f"Expected {len(corpus)} doc_ids, got {len(self._doc_ids)}")
         self._bm25: BM25Okapi | None = BM25Okapi(corpus) if corpus else None
 
     @property
@@ -172,10 +179,18 @@ class BM25Retriever:
         with open(path, "rb") as f:
             payload = pickle.load(f)
         if isinstance(payload, dict):
+            # Current payloads store explicit FAISS IDs; older payloads were
+            # plain corpus lists and are handled by the compatibility branch.
+            if "corpus" not in payload:
+                raise ValueError("BM25 corpus payload is missing 'corpus'")
             corpus: list[list[str]] = payload["corpus"]
+            if not isinstance(corpus, list):
+                raise ValueError("BM25 corpus payload must contain a list corpus")
             doc_ids = [int(value) for value in payload.get("doc_ids", range(len(corpus)))]
         else:
             corpus = payload
             doc_ids = list(range(len(corpus)))
+        if not isinstance(corpus, list):
+            raise ValueError("BM25 corpus payload must be a list or object")
         log.info("loaded BM25 corpus", path=str(path), docs=len(corpus))
         return cls(corpus, doc_ids=doc_ids)
