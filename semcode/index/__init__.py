@@ -339,6 +339,8 @@ class IndexingPipeline:
     ) -> None:
         self.settings = settings or get_settings()
         self._embedder = embedder  # None = build lazily on first run
+        if ivf_threshold <= 0:
+            raise ValueError("ivf_threshold must be positive")
         self.ivf_threshold = ivf_threshold
         self.last_stats: dict[str, int | float | bool] = {}
 

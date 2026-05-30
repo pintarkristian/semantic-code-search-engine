@@ -449,6 +449,12 @@ def test_pipeline_produces_parquet(tmp_path: Path) -> None:
     assert s.metadata_path.exists()
 
 
+def test_pipeline_rejects_invalid_ivf_threshold(tmp_path: Path) -> None:
+    s = _settings(tmp_path)
+    with pytest.raises(ValueError, match="ivf_threshold"):
+        IndexingPipeline(s, embedder=_mock_embedder(s), ivf_threshold=0)
+
+
 def test_pipeline_produces_faiss_index(tmp_path: Path) -> None:
     s = _settings(tmp_path)
     pipeline = IndexingPipeline(s, embedder=_mock_embedder(s))
