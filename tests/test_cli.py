@@ -121,3 +121,19 @@ def test_train_reranker_stub(tmp_path: Path) -> None:
     result = runner.invoke(app, ["train-reranker", str(labels)])
     assert result.exit_code == 0
     assert "not yet implemented" in result.output
+
+
+def test_train_reranker_rejects_non_positive_epochs(tmp_path: Path) -> None:
+    labels = tmp_path / "labels.json"
+    labels.write_text("{}")
+    result = runner.invoke(app, ["train-reranker", str(labels), "--epochs", "0"])
+    assert result.exit_code != 0
+    assert "Invalid value" in result.output
+
+
+def test_train_reranker_rejects_negative_negatives(tmp_path: Path) -> None:
+    labels = tmp_path / "labels.json"
+    labels.write_text("{}")
+    result = runner.invoke(app, ["train-reranker", str(labels), "--negatives-per-query", "-1"])
+    assert result.exit_code != 0
+    assert "Invalid value" in result.output

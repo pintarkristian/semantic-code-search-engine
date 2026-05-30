@@ -102,10 +102,11 @@ def train_reranker(
         "--dataset",
         help="Where to write/read the generated feature parquet.",
     ),
-    epochs: int = typer.Option(20, "--epochs", "-e", help="Training epochs."),
+    epochs: int = typer.Option(20, "--epochs", "-e", min=1, help="Training epochs."),
     negatives_per_query: int = typer.Option(
         8,
         "--negatives-per-query",
+        min=0,
         help="Number of fused non-relevant candidates to keep per query.",
     ),
 ) -> None:
