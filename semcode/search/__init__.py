@@ -181,6 +181,8 @@ class Searcher:
         query = query.strip()
         if not query:
             raise ValueError("query must contain non-whitespace text")
+        if k is not None and k <= 0:
+            raise ValueError("k must be positive")
         self._ensure_loaded()
         if self._store is None or self._bm25 is None or self._meta is None:
             raise RuntimeError("Searcher failed to load index artifacts.")

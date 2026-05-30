@@ -202,6 +202,12 @@ class TestSearcher:
         with pytest.raises(ValueError, match="non-whitespace"):
             searcher.search("   ")
 
+    def test_candidates_rejects_non_positive_k(self, tmp_path: Path) -> None:
+        settings, embedder, _ = _build_index(tmp_path)
+        searcher = Searcher(settings, embedder=embedder)
+        with pytest.raises(ValueError, match="k must be positive"):
+            searcher.candidates("function", k=0)
+
     def test_search_trims_query_before_rerank(self, tmp_path: Path) -> None:
         settings = _settings(tmp_path)
         searcher = Searcher(settings, embedder=_mock_embedder(settings))
