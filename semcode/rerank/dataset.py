@@ -43,6 +43,8 @@ def load_labels(path: Path) -> dict[str, list[str]]:
             chunk_ids = item.get("relevant_chunk_ids", item.get("relevant", []))
             if isinstance(chunk_ids, str):
                 chunk_ids = [chunk_ids]
+            elif not isinstance(chunk_ids, list):
+                raise ValueError("Label entry relevant IDs must be a string or list.")
             labels[str(item["query"])] = [str(chunk_id) for chunk_id in chunk_ids]
         return labels
 
