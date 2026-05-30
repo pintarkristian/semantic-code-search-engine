@@ -85,6 +85,14 @@ def test_load_labels_rejects_invalid_list_entry_values(tmp_path: Path) -> None:
         load_labels(labels_path)
 
 
+def test_load_labels_rejects_blank_queries(tmp_path: Path) -> None:
+    labels_path = tmp_path / "labels.json"
+    labels_path.write_text(json.dumps({"   ": ["chunk-1"]}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Label queries"):
+        load_labels(labels_path)
+
+
 def test_trained_toy_model_loads_and_scores_in_probability_range(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     features = build_features("validate token", _candidate_frame())

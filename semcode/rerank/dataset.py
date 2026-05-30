@@ -27,10 +27,11 @@ def load_labels(path: Path) -> dict[str, list[str]]:
     if isinstance(raw, dict):
         labels: dict[str, list[str]] = {}
         for query, chunk_ids in raw.items():
+            query_text = _label_query_text(query)
             if isinstance(chunk_ids, str):
-                labels[str(query)] = [chunk_ids]
+                labels[query_text] = [chunk_ids]
             elif isinstance(chunk_ids, list):
-                labels[str(query)] = [str(chunk_id) for chunk_id in chunk_ids]
+                labels[query_text] = [str(chunk_id) for chunk_id in chunk_ids]
             else:
                 raise ValueError("Label values must be strings or lists of chunk IDs.")
         return labels
@@ -40,15 +41,23 @@ def load_labels(path: Path) -> dict[str, list[str]]:
         for item in raw:
             if not isinstance(item, dict) or "query" not in item:
                 raise ValueError("Label list entries must contain a 'query' field.")
+            query_text = _label_query_text(item["query"])
             chunk_ids = item.get("relevant_chunk_ids", item.get("relevant", []))
             if isinstance(chunk_ids, str):
                 chunk_ids = [chunk_ids]
             elif not isinstance(chunk_ids, list):
                 raise ValueError("Label entry relevant IDs must be a string or list.")
-            labels[str(item["query"])] = [str(chunk_id) for chunk_id in chunk_ids]
+            labels[query_text] = [str(chunk_id) for chunk_id in chunk_ids]
         return labels
 
     raise ValueError("Labels JSON must be an object or list.")
+
+
+def _label_query_text(value: object) -> str:
+    query = str(value).strip()
+    if not query:
+        raise ValueError("Label queries must contain non-whitespace text.")
+    return query
 
 
 def build_reranker_dataset(
