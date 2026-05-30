@@ -65,6 +65,9 @@ class BM25Retriever:
     """
 
     def __init__(self, corpus: list[list[str]], *, doc_ids: list[int] | None = None) -> None:
+        for doc in corpus:
+            if not isinstance(doc, list):
+                raise ValueError("BM25 corpus documents must be token lists")
         self._corpus = corpus
         self._doc_ids = doc_ids or list(range(len(corpus)))
         if len(self._doc_ids) != len(corpus):

@@ -444,6 +444,10 @@ class TestBM25Retriever:
         with pytest.raises(ValueError, match="doc_ids"):
             BM25Retriever([["alpha"], ["beta"]], doc_ids=[10])
 
+    def test_rejects_non_list_documents(self) -> None:
+        with pytest.raises(ValueError, match="token lists"):
+            BM25Retriever([["alpha"], "beta"])  # type: ignore[list-item]
+
     def test_scores_descending(self) -> None:
         corpus = [
             ["foo"],
