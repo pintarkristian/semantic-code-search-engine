@@ -55,6 +55,7 @@ def test_path_fields_are_path_objects(monkeypatch: pytest.MonkeyPatch) -> None:
         ("request_timeout_seconds", 0),
         ("rate_limit_requests", -1),
         ("rate_limit_window_seconds", 0),
+        ("port", 0),
         ("batch_size", 0),
         ("max_chunk_tokens", 0),
         ("top_k_retrieve", 0),
@@ -70,6 +71,11 @@ def test_operational_limits_must_be_positive(field: str, value: int) -> None:
 
 def test_rate_limit_zero_disables_limiter() -> None:
     assert Settings(rate_limit_requests=0).rate_limit_requests == 0
+
+
+def test_port_must_not_exceed_tcp_range() -> None:
+    with pytest.raises(ValidationError):
+        Settings(port=65536)
 
 
 def test_invalid_log_level_rejected() -> None:

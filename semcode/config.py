@@ -12,6 +12,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 PositiveFloat = Annotated[float, Field(gt=0)]
 PositiveInt = Annotated[int, Field(gt=0)]
 NonNegativeInt = Annotated[int, Field(ge=0)]
+Port = Annotated[int, Field(ge=1, le=65535)]
 
 
 class Settings(BaseSettings):
@@ -21,7 +22,7 @@ class Settings(BaseSettings):
     app_name: str = "semcode"
     debug: bool = False
     host: str = "0.0.0.0"
-    port: int = 8000
+    port: Port = 8000
     log_level: str = "INFO"  # DEBUG | INFO | WARNING | ERROR
     log_format: str = "pretty"  # "pretty" (dev) | "json" (prod)
     request_timeout_seconds: PositiveFloat = 30.0
