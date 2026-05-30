@@ -174,10 +174,16 @@ class BM25Retriever:
         with open(path, "rb") as f:
             payload = pickle.load(f)
         if isinstance(payload, dict):
+            if "corpus" not in payload:
+                raise ValueError("BM25 corpus payload is missing 'corpus'")
             corpus: list[list[str]] = payload["corpus"]
+            if not isinstance(corpus, list):
+                raise ValueError("BM25 corpus payload must contain a list corpus")
             doc_ids = [int(value) for value in payload.get("doc_ids", range(len(corpus)))]
         else:
             corpus = payload
             doc_ids = list(range(len(corpus)))
+        if not isinstance(corpus, list):
+            raise ValueError("BM25 corpus payload must be a list or object")
         log.info("loaded BM25 corpus", path=str(path), docs=len(corpus))
         return cls(corpus, doc_ids=doc_ids)

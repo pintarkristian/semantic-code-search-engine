@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pickle
 from pathlib import Path
 
 import pandas as pd
@@ -369,6 +370,14 @@ class TestBM25Retriever:
         loaded = BM25Retriever.load(path)
         assert loaded._corpus == corpus
         assert bm25.search("foo", k=2) == loaded.search("foo", k=2)
+
+    def test_load_rejects_payload_without_corpus(self, tmp_path: Path) -> None:
+        path = tmp_path / "corpus.pkl"
+        with open(path, "wb") as f:
+            pickle.dump({"doc_ids": [1, 2]}, f)
+
+        with pytest.raises(ValueError, match="missing 'corpus'"):
+            BM25Retriever.load(path)
 
     def test_empty_corpus(self) -> None:
         bm25 = BM25Retriever([])
