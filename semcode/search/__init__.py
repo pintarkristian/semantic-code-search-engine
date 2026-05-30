@@ -247,6 +247,9 @@ class Searcher:
         Returns:
             List of SearchResult sorted by fused_score descending.
         """
+        query = query.strip()
+        if not query:
+            raise ValueError("query must contain non-whitespace text")
         k = k if k is not None else self.settings.top_k_return
         reranker_enabled = self.settings.use_reranker if use_reranker is None else use_reranker
         candidates = self.candidates(query)

@@ -202,6 +202,41 @@ class TestSearcher:
         with pytest.raises(ValueError, match="non-whitespace"):
             searcher.search("   ")
 
+    def test_search_trims_query_before_rerank(self, tmp_path: Path) -> None:
+        settings = _settings(tmp_path)
+        searcher = Searcher(settings, embedder=_mock_embedder(settings))
+        seen: dict[str, str] = {}
+
+        def fake_candidates(query: str):
+            return pd.DataFrame(
+                [
+                    {
+                        "chunk_id": "chunk-1",
+                        "file_path": "src/auth.py",
+                        "symbol_name": "validate",
+                        "symbol_type": "function",
+                        "language": "python",
+                        "start_line": 1,
+                        "end_line": 2,
+                        "code": "def validate(): pass",
+                        "dense_score": 0.5,
+                        "bm25_score": 0.0,
+                        "fused_score": 0.25,
+                    }
+                ]
+            )
+
+        def fake_rerank(query: str, candidates: pd.DataFrame, use_reranker: bool):
+            seen["query"] = query
+            return candidates
+
+        searcher.candidates = fake_candidates  # type: ignore[method-assign]
+        searcher._maybe_rerank = fake_rerank  # type: ignore[method-assign]
+
+        searcher.search("  validate token  ", k=1)
+
+        assert seen["query"] == "validate token"
+
     def test_default_k_from_settings(self, tmp_path: Path) -> None:
         settings, embedder, _ = _build_index(tmp_path, n=12)
         # top_k_return=5 in _settings helper
