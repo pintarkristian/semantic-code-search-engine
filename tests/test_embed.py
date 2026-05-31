@@ -350,6 +350,11 @@ def test_embedding_cache_ignores_malformed_payload(settings: Settings) -> None:
     assert cache.get("missing") is None
 
 
+def test_embedding_cache_rejects_invalid_dimension(settings: Settings) -> None:
+    with pytest.raises(ValueError, match="dimension"):
+        EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=0)
+
+
 def test_embedding_cache_ignores_malformed_vectors(settings: Settings) -> None:
     cache_path = settings.data_dir / "embedding_cache.pkl"
     cache_path.parent.mkdir(parents=True, exist_ok=True)

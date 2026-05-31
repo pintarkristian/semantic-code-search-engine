@@ -185,6 +185,8 @@ class EmbeddingCache:
         self.settings = settings
         self.model_name = model_name
         self.dimension = int(dimension)
+        if self.dimension <= 0:
+            raise ValueError("dimension must be positive")
         self.path = embedding_cache_path(settings)
         self._vectors: dict[str, np.ndarray] = {}
         self._load()
