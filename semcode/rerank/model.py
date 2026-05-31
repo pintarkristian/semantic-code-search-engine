@@ -190,6 +190,10 @@ class ReRanker:
             outputs = self._signature(tf.constant(features))
             tensor = next(iter(outputs.values()))
             scores = np.asarray(tensor).reshape(-1).astype("float32")
+            if len(scores) != len(candidates):
+                raise ValueError(
+                    f"Expected {len(candidates)} reranker scores, got {len(scores)}"
+                )
             return np.clip(scores, 0.0, 1.0)
         except Exception as exc:  # pragma: no cover - defensive production fallback
             log.warning("reranker failed; falling back to fused score", error=str(exc))
