@@ -175,7 +175,12 @@ class Embedder:
                 convert_to_numpy=True,
             )
 
-        return np.asarray(vectors, dtype=np.float32)
+        out = np.asarray(vectors, dtype=np.float32)
+        if out.ndim != 2 or out.shape[0] != len(texts):
+            raise ValueError(
+                f"Expected embedding matrix with {len(texts)} rows, got shape {out.shape}"
+            )
+        return out
 
 
 # ---------------------------------------------------------------------------

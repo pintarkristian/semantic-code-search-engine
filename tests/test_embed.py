@@ -63,6 +63,11 @@ class _BadDimensionModel(_MockModel):
         return 0
 
 
+class _BadShapeModel(_MockModel):
+    def encode(self, *args: Any, **kwargs: Any) -> np.ndarray:
+        return np.zeros(_MOCK_DIM, dtype=np.float32)
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -218,6 +223,13 @@ def test_encode_single_text(embedder: Embedder) -> None:
 def test_encode_rejects_non_string_items(embedder: Embedder) -> None:
     with pytest.raises(TypeError, match="list of strings"):
         embedder.encode(["ok", 123])  # type: ignore[list-item]
+
+
+def test_encode_rejects_invalid_model_output_shape(settings: Settings) -> None:
+    emb = Embedder(settings, _model=_BadShapeModel())
+
+    with pytest.raises(ValueError, match="embedding matrix"):
+        emb.encode(["hello"])
 
 
 def test_dimension_property(embedder: Embedder) -> None:
