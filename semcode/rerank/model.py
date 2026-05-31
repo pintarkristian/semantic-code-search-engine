@@ -190,6 +190,8 @@ class ReRanker:
             outputs = self._signature(tf.constant(features))
             tensor = next(iter(outputs.values()))
             scores = np.asarray(tensor).reshape(-1).astype("float32")
+            # The score vector must stay aligned with the candidate DataFrame;
+            # otherwise pandas would attach scores to the wrong code chunks.
             if len(scores) != len(candidates):
                 raise ValueError(
                     f"Expected {len(candidates)} reranker scores, got {len(scores)}"

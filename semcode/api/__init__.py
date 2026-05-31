@@ -291,6 +291,8 @@ def create_app(
                     f"artifacts under {app_settings.data_dir}."
                 ),
             ) from exc
+        # Searcher raises ValueError for caller-correctable input problems; keep
+        # those as 4xx responses instead of routing them through the 500 handler.
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 

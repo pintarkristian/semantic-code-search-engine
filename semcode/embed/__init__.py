@@ -176,6 +176,8 @@ class Embedder:
             )
 
         out = np.asarray(vectors, dtype=np.float32)
+        # Keep model adapters honest before vectors reach the cache or FAISS,
+        # where shape/value corruption is harder to trace back to the source.
         if out.ndim != 2 or out.shape[0] != len(texts):
             raise ValueError(
                 f"Expected embedding matrix with {len(texts)} rows, got shape {out.shape}"
