@@ -161,6 +161,11 @@ def test_chunk_to_text_truncates() -> None:
     assert len(text) <= 100
 
 
+def test_chunk_to_text_rejects_non_positive_max_chars() -> None:
+    with pytest.raises(ValueError, match="max_chars"):
+        chunk_to_text({"code": "def ok(): pass"}, max_chars=0)
+
+
 def test_chunk_to_text_accepts_pandas_series(sample_df: pd.DataFrame) -> None:
     for _, row in sample_df.iterrows():
         text = chunk_to_text(row)
