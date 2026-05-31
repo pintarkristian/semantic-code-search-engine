@@ -68,6 +68,12 @@ class _BadShapeModel(_MockModel):
         return np.zeros(_MOCK_DIM, dtype=np.float32)
 
 
+class _WrongWidthModel(_MockModel):
+    def encode(self, inputs: list[str] | str, *args: Any, **kwargs: Any) -> np.ndarray:
+        texts = inputs if isinstance(inputs, list) else [inputs]
+        return np.zeros((len(texts), _MOCK_DIM + 1), dtype=np.float32)
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -229,6 +235,13 @@ def test_encode_rejects_invalid_model_output_shape(settings: Settings) -> None:
     emb = Embedder(settings, _model=_BadShapeModel())
 
     with pytest.raises(ValueError, match="embedding matrix"):
+        emb.encode(["hello"])
+
+
+def test_encode_rejects_wrong_model_output_width(settings: Settings) -> None:
+    emb = Embedder(settings, _model=_WrongWidthModel())
+
+    with pytest.raises(ValueError, match="embedding dimension"):
         emb.encode(["hello"])
 
 

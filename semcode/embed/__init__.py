@@ -180,6 +180,9 @@ class Embedder:
             raise ValueError(
                 f"Expected embedding matrix with {len(texts)} rows, got shape {out.shape}"
             )
+        expected_dim = self.dimension
+        if out.shape[1] != expected_dim:
+            raise ValueError(f"Expected embedding dimension {expected_dim}, got {out.shape[1]}")
         return out
 
 
