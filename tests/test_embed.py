@@ -215,6 +215,11 @@ def test_encode_single_text(embedder: Embedder) -> None:
     assert out.shape == (1, _MOCK_DIM)
 
 
+def test_encode_rejects_non_string_items(embedder: Embedder) -> None:
+    with pytest.raises(TypeError, match="list of strings"):
+        embedder.encode(["ok", 123])  # type: ignore[list-item]
+
+
 def test_dimension_property(embedder: Embedder) -> None:
     assert embedder.dimension == _MOCK_DIM
 
