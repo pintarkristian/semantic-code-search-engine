@@ -259,6 +259,21 @@ async def test_search_trims_query_before_search(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_search_default_k_comes_from_settings(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    settings.top_k_return = 2
+    embedder = Embedder(settings, _model=MockSentenceTransformer())
+    IndexingPipeline(settings, embedder=embedder).run(FIXTURE_REPO)
+    app = create_app(settings, searcher=Searcher(settings, embedder=embedder))
+
+    async with _client(app) as client:
+        response = await client.get("/search", params={"q": "validate token"})
+
+    assert response.status_code == 200
+    assert len(response.json()["results"]) <= 2
+
+
+@pytest.mark.asyncio
 async def test_search_without_index_returns_friendly_503(tmp_path: Path) -> None:
     app = create_app(_settings(tmp_path))
     async with _client(app) as client:

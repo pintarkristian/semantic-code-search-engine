@@ -265,7 +265,7 @@ def create_app(
             description="Natural-language code search query.",
         ),
         k: int = Query(
-            10,
+            app_settings.top_k_return,
             ge=1,
             le=app_settings.max_search_k,
             description="Number of ranked results to return.",
