@@ -465,7 +465,9 @@ def _rate_limited(app: FastAPI, request: Request, settings: Settings) -> bool:
 def _client_host(request: Request) -> str:
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
-        return forwarded.split(",", 1)[0].strip()
+        client = forwarded.split(",", 1)[0].strip()
+        if client:
+            return client
     return request.client.host if request.client else "unknown"
 
 
