@@ -142,7 +142,10 @@ class Embedder:
     @property
     def dimension(self) -> int:
         """Embedding dimension of the loaded model."""
-        return int(self._load_model().get_sentence_embedding_dimension())
+        dimension = int(self._load_model().get_sentence_embedding_dimension())
+        if dimension <= 0:
+            raise ValueError("embedding model dimension must be positive")
+        return dimension
 
     def encode(self, texts: list[str]) -> np.ndarray:
         """Encode a list of strings to an L2-normalised float32 matrix.

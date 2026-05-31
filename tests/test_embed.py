@@ -58,6 +58,11 @@ class _MockModel:
         return rng.standard_normal(_MOCK_DIM).astype(np.float32)
 
 
+class _BadDimensionModel(_MockModel):
+    def get_sentence_embedding_dimension(self) -> int:
+        return 0
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -212,6 +217,13 @@ def test_encode_single_text(embedder: Embedder) -> None:
 
 def test_dimension_property(embedder: Embedder) -> None:
     assert embedder.dimension == _MOCK_DIM
+
+
+def test_dimension_property_rejects_invalid_model_dimension(settings: Settings) -> None:
+    emb = Embedder(settings, _model=_BadDimensionModel())
+
+    with pytest.raises(ValueError, match="dimension"):
+        _ = emb.dimension
 
 
 # ---------------------------------------------------------------------------
