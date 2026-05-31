@@ -135,6 +135,13 @@ def test_build_model_rejects_invalid_input_dim() -> None:
         build_model(0)
 
 
+def test_reranker_score_rejects_blank_query(tmp_path: Path) -> None:
+    reranker = ReRanker(_settings(tmp_path))
+
+    with pytest.raises(ValueError, match="non-whitespace"):
+        reranker.score("   ", _candidate_frame())
+
+
 def test_trained_toy_model_loads_and_scores_in_probability_range(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     features = build_features("validate token", _candidate_frame())

@@ -173,6 +173,9 @@ class ReRanker:
 
     def score(self, query: str, candidates: pd.DataFrame) -> np.ndarray:
         """Return a score in [0, 1] for each candidate, or fused scores on fallback."""
+        query = query.strip()
+        if not query:
+            raise ValueError("query must contain non-whitespace text")
         fallback = candidates.get("fused_score", pd.Series([0.0] * len(candidates))).to_numpy(
             dtype="float32"
         )
