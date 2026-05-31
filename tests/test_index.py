@@ -131,6 +131,14 @@ def test_build_rejects_1d_array(tmp_path: Path) -> None:
         store.build(np.zeros(MOCK_DIM, dtype=np.float32))
 
 
+def test_build_rejects_non_finite_vectors(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    vecs[0, 0] = np.nan
+    store = VectorStore(_settings(tmp_path))
+    with pytest.raises(ValueError, match="finite"):
+        store.build(vecs)
+
+
 def test_build_rejects_duplicate_faiss_ids(tmp_path: Path) -> None:
     vecs = _unit_vectors(3)
     store = VectorStore(_settings(tmp_path))
