@@ -183,6 +183,8 @@ class Embedder:
         expected_dim = self.dimension
         if out.shape[1] != expected_dim:
             raise ValueError(f"Expected embedding dimension {expected_dim}, got {out.shape[1]}")
+        if not np.isfinite(out).all():
+            raise ValueError("embedding matrix contains NaN or infinite values")
         return out
 
 

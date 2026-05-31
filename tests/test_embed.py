@@ -74,6 +74,14 @@ class _WrongWidthModel(_MockModel):
         return np.zeros((len(texts), _MOCK_DIM + 1), dtype=np.float32)
 
 
+class _NonFiniteModel(_MockModel):
+    def encode(self, inputs: list[str] | str, *args: Any, **kwargs: Any) -> np.ndarray:
+        texts = inputs if isinstance(inputs, list) else [inputs]
+        out = np.zeros((len(texts), _MOCK_DIM), dtype=np.float32)
+        out[0, 0] = np.nan
+        return out
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -242,6 +250,13 @@ def test_encode_rejects_wrong_model_output_width(settings: Settings) -> None:
     emb = Embedder(settings, _model=_WrongWidthModel())
 
     with pytest.raises(ValueError, match="embedding dimension"):
+        emb.encode(["hello"])
+
+
+def test_encode_rejects_non_finite_model_output(settings: Settings) -> None:
+    emb = Embedder(settings, _model=_NonFiniteModel())
+
+    with pytest.raises(ValueError, match="NaN or infinite"):
         emb.encode(["hello"])
 
 
