@@ -291,6 +291,8 @@ def create_app(
                     f"artifacts under {app_settings.data_dir}."
                 ),
             ) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
         latency = time.perf_counter() - start
         _SEARCH_LATENCY.labels(use_reranker=str(use_reranker).lower()).observe(latency)

@@ -71,6 +71,11 @@ def _preindexed_bm25_app(tmp_path: Path):
     return create_app(settings, searcher=searcher), settings
 
 
+class _ValidationErrorSearcher:
+    def search(self, query: str, k: int, use_reranker: bool):  # type: ignore[no-untyped-def]
+        raise ValueError("k must be positive")
+
+
 @pytest.mark.asyncio
 async def test_health_without_index(tmp_path: Path) -> None:
     app = create_app(_settings(tmp_path))
@@ -246,6 +251,21 @@ async def test_blank_search_query_returns_422(tmp_path: Path) -> None:
 
     assert response.status_code == 422
     assert response.json()["error"]["message"] == "query must contain non-whitespace text"
+
+
+@pytest.mark.asyncio
+async def test_searcher_validation_error_returns_422(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    settings.metadata_path.write_text("metadata")
+    settings.faiss_index_path.write_text("index")
+    settings.faiss_index_path.with_suffix(".json").write_text("{}")
+    app = create_app(settings, searcher=_ValidationErrorSearcher())  # type: ignore[arg-type]
+
+    async with _client(app) as client:
+        response = await client.get("/search", params={"q": "validate token", "k": 5})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["message"] == "k must be positive"
 
 
 @pytest.mark.asyncio
