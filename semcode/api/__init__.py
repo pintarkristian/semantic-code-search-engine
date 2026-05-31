@@ -265,7 +265,7 @@ def create_app(
             description="Natural-language code search query.",
         ),
         k: int = Query(
-            10,
+            app_settings.top_k_return,
             ge=1,
             le=app_settings.max_search_k,
             description="Number of ranked results to return.",
@@ -291,6 +291,10 @@ def create_app(
                     f"artifacts under {app_settings.data_dir}."
                 ),
             ) from exc
+        # Searcher raises ValueError for caller-correctable input problems; keep
+        # those as 4xx responses instead of routing them through the 500 handler.
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
         latency = time.perf_counter() - start
         _SEARCH_LATENCY.labels(use_reranker=str(use_reranker).lower()).observe(latency)
@@ -347,7 +351,7 @@ def _install_observability_middleware(app: FastAPI, settings: Settings) -> None:
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next):  # type: ignore[no-untyped-def]
         start = time.perf_counter()
-        request_id = request.headers.get("x-request-id", uuid.uuid4().hex)
+        request_id = request.headers.get("x-request-id") or uuid.uuid4().hex
         request.state.request_id = request_id
         status_code = 500
         response: Response
@@ -463,7 +467,9 @@ def _rate_limited(app: FastAPI, request: Request, settings: Settings) -> bool:
 def _client_host(request: Request) -> str:
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
-        return forwarded.split(",", 1)[0].strip()
+        client = forwarded.split(",", 1)[0].strip()
+        if client:
+            return client
     return request.client.host if request.client else "unknown"
 
 

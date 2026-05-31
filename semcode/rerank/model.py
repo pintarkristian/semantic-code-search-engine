@@ -173,6 +173,9 @@ class ReRanker:
 
     def score(self, query: str, candidates: pd.DataFrame) -> np.ndarray:
         """Return a score in [0, 1] for each candidate, or fused scores on fallback."""
+        query = query.strip()
+        if not query:
+            raise ValueError("query must contain non-whitespace text")
         fallback = candidates.get("fused_score", pd.Series([0.0] * len(candidates))).to_numpy(
             dtype="float32"
         )
@@ -187,6 +190,12 @@ class ReRanker:
             outputs = self._signature(tf.constant(features))
             tensor = next(iter(outputs.values()))
             scores = np.asarray(tensor).reshape(-1).astype("float32")
+            # The score vector must stay aligned with the candidate DataFrame;
+            # otherwise pandas would attach scores to the wrong code chunks.
+            if len(scores) != len(candidates):
+                raise ValueError(
+                    f"Expected {len(candidates)} reranker scores, got {len(scores)}"
+                )
             return np.clip(scores, 0.0, 1.0)
         except Exception as exc:  # pragma: no cover - defensive production fallback
             log.warning("reranker failed; falling back to fused score", error=str(exc))

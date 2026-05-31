@@ -53,6 +53,8 @@ def chunk_to_text(row: Any, max_chars: int = 2048) -> str:
     (the model's tokeniser will also truncate, but this avoids sending very large
     strings over the wire in future distributed setups).
     """
+    if max_chars <= 0:
+        raise ValueError("max_chars must be positive")
     parts: list[str] = []
 
     name = _text_value(
@@ -140,7 +142,10 @@ class Embedder:
     @property
     def dimension(self) -> int:
         """Embedding dimension of the loaded model."""
-        return int(self._load_model().get_sentence_embedding_dimension())
+        dimension = int(self._load_model().get_sentence_embedding_dimension())
+        if dimension <= 0:
+            raise ValueError("embedding model dimension must be positive")
+        return dimension
 
     def encode(self, texts: list[str]) -> np.ndarray:
         """Encode a list of strings to an L2-normalised float32 matrix.
@@ -152,6 +157,8 @@ class Embedder:
             np.ndarray of shape (len(texts), dimension), dtype float32,
             with each row L2-normalised to unit length.
         """
+        if any(not isinstance(text, str) for text in texts):
+            raise TypeError("texts must be a list of strings")
         if not texts:
             return np.zeros((0, self.dimension), dtype=np.float32)
 
@@ -168,7 +175,19 @@ class Embedder:
                 convert_to_numpy=True,
             )
 
-        return np.asarray(vectors, dtype=np.float32)
+        out = np.asarray(vectors, dtype=np.float32)
+        # Keep model adapters honest before vectors reach the cache or FAISS,
+        # where shape/value corruption is harder to trace back to the source.
+        if out.ndim != 2 or out.shape[0] != len(texts):
+            raise ValueError(
+                f"Expected embedding matrix with {len(texts)} rows, got shape {out.shape}"
+            )
+        expected_dim = self.dimension
+        if out.shape[1] != expected_dim:
+            raise ValueError(f"Expected embedding dimension {expected_dim}, got {out.shape[1]}")
+        if not np.isfinite(out).all():
+            raise ValueError("embedding matrix contains NaN or infinite values")
+        return out
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +202,8 @@ class EmbeddingCache:
         self.settings = settings
         self.model_name = model_name
         self.dimension = int(dimension)
+        if self.dimension <= 0:
+            raise ValueError("dimension must be positive")
         self.path = embedding_cache_path(settings)
         self._vectors: dict[str, np.ndarray] = {}
         self._load()
@@ -270,6 +291,8 @@ class EmbeddingCache:
             raise ValueError(
                 f"Expected cached vector dimension {self.dimension}, got shape {arr.shape}"
             )
+        if not np.isfinite(arr).all():
+            raise ValueError("cached vector must contain only finite values")
         self._vectors[content_hash] = arr
 
 

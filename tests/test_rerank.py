@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -133,6 +135,28 @@ def test_train_model_rejects_invalid_training_options(tmp_path: Path) -> None:
 def test_build_model_rejects_invalid_input_dim() -> None:
     with pytest.raises(ValueError, match="input_dim"):
         build_model(0)
+
+
+def test_reranker_score_rejects_blank_query(tmp_path: Path) -> None:
+    reranker = ReRanker(_settings(tmp_path))
+
+    with pytest.raises(ValueError, match="non-whitespace"):
+        reranker.score("   ", _candidate_frame())
+
+
+def test_reranker_score_falls_back_on_wrong_score_count(tmp_path: Path) -> None:
+    class _BadSignature:
+        def __call__(self, features: Any) -> dict[str, np.ndarray]:
+            return {"scores": np.asarray([[0.5]], dtype="float32")}
+
+    reranker = ReRanker(_settings(tmp_path))
+    reranker._available = True
+    reranker._model = object()
+    reranker._signature = _BadSignature()
+
+    scores = reranker.score("validate token", _candidate_frame())
+
+    np.testing.assert_allclose(scores, _candidate_frame()["fused_score"].to_numpy("float32"))
 
 
 def test_trained_toy_model_loads_and_scores_in_probability_range(tmp_path: Path) -> None:

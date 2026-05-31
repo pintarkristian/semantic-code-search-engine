@@ -58,6 +58,30 @@ class _MockModel:
         return rng.standard_normal(_MOCK_DIM).astype(np.float32)
 
 
+class _BadDimensionModel(_MockModel):
+    def get_sentence_embedding_dimension(self) -> int:
+        return 0
+
+
+class _BadShapeModel(_MockModel):
+    def encode(self, *args: Any, **kwargs: Any) -> np.ndarray:
+        return np.zeros(_MOCK_DIM, dtype=np.float32)
+
+
+class _WrongWidthModel(_MockModel):
+    def encode(self, inputs: list[str] | str, *args: Any, **kwargs: Any) -> np.ndarray:
+        texts = inputs if isinstance(inputs, list) else [inputs]
+        return np.zeros((len(texts), _MOCK_DIM + 1), dtype=np.float32)
+
+
+class _NonFiniteModel(_MockModel):
+    def encode(self, inputs: list[str] | str, *args: Any, **kwargs: Any) -> np.ndarray:
+        texts = inputs if isinstance(inputs, list) else [inputs]
+        out = np.zeros((len(texts), _MOCK_DIM), dtype=np.float32)
+        out[0, 0] = np.nan
+        return out
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -161,6 +185,11 @@ def test_chunk_to_text_truncates() -> None:
     assert len(text) <= 100
 
 
+def test_chunk_to_text_rejects_non_positive_max_chars() -> None:
+    with pytest.raises(ValueError, match="max_chars"):
+        chunk_to_text({"code": "def ok(): pass"}, max_chars=0)
+
+
 def test_chunk_to_text_accepts_pandas_series(sample_df: pd.DataFrame) -> None:
     for _, row in sample_df.iterrows():
         text = chunk_to_text(row)
@@ -205,8 +234,41 @@ def test_encode_single_text(embedder: Embedder) -> None:
     assert out.shape == (1, _MOCK_DIM)
 
 
+def test_encode_rejects_non_string_items(embedder: Embedder) -> None:
+    with pytest.raises(TypeError, match="list of strings"):
+        embedder.encode(["ok", 123])  # type: ignore[list-item]
+
+
+def test_encode_rejects_invalid_model_output_shape(settings: Settings) -> None:
+    emb = Embedder(settings, _model=_BadShapeModel())
+
+    with pytest.raises(ValueError, match="embedding matrix"):
+        emb.encode(["hello"])
+
+
+def test_encode_rejects_wrong_model_output_width(settings: Settings) -> None:
+    emb = Embedder(settings, _model=_WrongWidthModel())
+
+    with pytest.raises(ValueError, match="embedding dimension"):
+        emb.encode(["hello"])
+
+
+def test_encode_rejects_non_finite_model_output(settings: Settings) -> None:
+    emb = Embedder(settings, _model=_NonFiniteModel())
+
+    with pytest.raises(ValueError, match="NaN or infinite"):
+        emb.encode(["hello"])
+
+
 def test_dimension_property(embedder: Embedder) -> None:
     assert embedder.dimension == _MOCK_DIM
+
+
+def test_dimension_property_rejects_invalid_model_dimension(settings: Settings) -> None:
+    emb = Embedder(settings, _model=_BadDimensionModel())
+
+    with pytest.raises(ValueError, match="dimension"):
+        _ = emb.dimension
 
 
 # ---------------------------------------------------------------------------
@@ -345,6 +407,11 @@ def test_embedding_cache_ignores_malformed_payload(settings: Settings) -> None:
     assert cache.get("missing") is None
 
 
+def test_embedding_cache_rejects_invalid_dimension(settings: Settings) -> None:
+    with pytest.raises(ValueError, match="dimension"):
+        EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=0)
+
+
 def test_embedding_cache_ignores_malformed_vectors(settings: Settings) -> None:
     cache_path = settings.data_dir / "embedding_cache.pkl"
     cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -390,6 +457,15 @@ def test_embedding_cache_rejects_wrong_dimension_on_set(settings: Settings) -> N
 
     with pytest.raises(ValueError, match="cached vector dimension"):
         cache.set("bad", np.zeros(_MOCK_DIM + 1, dtype=np.float32))
+
+
+def test_embedding_cache_rejects_non_finite_vector_on_set(settings: Settings) -> None:
+    cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
+    vector = np.zeros(_MOCK_DIM, dtype=np.float32)
+    vector[0] = np.inf
+
+    with pytest.raises(ValueError, match="finite"):
+        cache.set("bad", vector)
 
 
 def test_cached_embedding_counts_duplicate_content_as_hits(settings: Settings) -> None:

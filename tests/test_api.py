@@ -71,6 +71,11 @@ def _preindexed_bm25_app(tmp_path: Path):
     return create_app(settings, searcher=searcher), settings
 
 
+class _ValidationErrorSearcher:
+    def search(self, query: str, k: int, use_reranker: bool):  # type: ignore[no-untyped-def]
+        raise ValueError("k must be positive")
+
+
 @pytest.mark.asyncio
 async def test_health_without_index(tmp_path: Path) -> None:
     app = create_app(_settings(tmp_path))
@@ -84,6 +89,16 @@ async def test_health_without_index(tmp_path: Path) -> None:
     assert body["index_loaded"] is False
     assert body["model_name"] == "test-model"
     assert body["missing_artifacts"]
+    assert response.headers["x-request-id"]
+
+
+@pytest.mark.asyncio
+async def test_blank_request_id_header_is_replaced(tmp_path: Path) -> None:
+    app = create_app(_settings(tmp_path))
+    async with _client(app) as client:
+        response = await client.get("/health", headers={"x-request-id": ""})
+
+    assert response.status_code == 200
     assert response.headers["x-request-id"]
 
 
@@ -249,6 +264,21 @@ async def test_blank_search_query_returns_422(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_searcher_validation_error_returns_422(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    settings.metadata_path.write_text("metadata")
+    settings.faiss_index_path.write_text("index")
+    settings.faiss_index_path.with_suffix(".json").write_text("{}")
+    app = create_app(settings, searcher=_ValidationErrorSearcher())  # type: ignore[arg-type]
+
+    async with _client(app) as client:
+        response = await client.get("/search", params={"q": "validate token", "k": 5})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["message"] == "k must be positive"
+
+
+@pytest.mark.asyncio
 async def test_search_trims_query_before_search(tmp_path: Path) -> None:
     app, _ = _preindexed_app(tmp_path)
     async with _client(app) as client:
@@ -256,6 +286,21 @@ async def test_search_trims_query_before_search(tmp_path: Path) -> None:
 
     assert response.status_code == 200
     assert response.json()["query"] == "validate JWT token"
+
+
+@pytest.mark.asyncio
+async def test_search_default_k_comes_from_settings(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    settings.top_k_return = 2
+    embedder = Embedder(settings, _model=MockSentenceTransformer())
+    IndexingPipeline(settings, embedder=embedder).run(FIXTURE_REPO)
+    app = create_app(settings, searcher=Searcher(settings, embedder=embedder))
+
+    async with _client(app) as client:
+        response = await client.get("/search", params={"q": "validate token"})
+
+    assert response.status_code == 200
+    assert len(response.json()["results"]) <= 2
 
 
 @pytest.mark.asyncio
@@ -310,6 +355,22 @@ async def test_rate_limit_prunes_stale_clients(tmp_path: Path) -> None:
 
     assert response.status_code == 503
     assert "stale-client" not in app.state.rate_limit_hits
+
+
+@pytest.mark.asyncio
+async def test_blank_forwarded_for_does_not_create_empty_rate_limit_bucket(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    settings.rate_limit_requests = 10
+    app = create_app(settings)
+    async with _client(app) as client:
+        response = await client.get(
+            "/search",
+            params={"q": "validate token", "k": 5},
+            headers={"x-forwarded-for": "   "},
+        )
+
+    assert response.status_code == 503
+    assert "" not in app.state.rate_limit_hits
 
 
 @pytest.mark.asyncio

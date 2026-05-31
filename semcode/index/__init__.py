@@ -91,6 +91,8 @@ class VectorStore:
         if vectors.ndim != 2:
             raise ValueError(f"Expected 2-D array, got shape {vectors.shape}")
         vectors = np.ascontiguousarray(vectors, dtype=np.float32)
+        if not np.isfinite(vectors).all():
+            raise ValueError("FAISS vectors must contain only finite values")
         n, dim = vectors.shape
         ids = None if ids is None else np.ascontiguousarray(ids, dtype=np.int64)
         if ids is not None and len(ids) != n:
