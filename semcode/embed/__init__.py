@@ -289,6 +289,8 @@ class EmbeddingCache:
             raise ValueError(
                 f"Expected cached vector dimension {self.dimension}, got shape {arr.shape}"
             )
+        if not np.isfinite(arr).all():
+            raise ValueError("cached vector must contain only finite values")
         self._vectors[content_hash] = arr
 
 

@@ -459,6 +459,15 @@ def test_embedding_cache_rejects_wrong_dimension_on_set(settings: Settings) -> N
         cache.set("bad", np.zeros(_MOCK_DIM + 1, dtype=np.float32))
 
 
+def test_embedding_cache_rejects_non_finite_vector_on_set(settings: Settings) -> None:
+    cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
+    vector = np.zeros(_MOCK_DIM, dtype=np.float32)
+    vector[0] = np.inf
+
+    with pytest.raises(ValueError, match="finite"):
+        cache.set("bad", vector)
+
+
 def test_cached_embedding_counts_duplicate_content_as_hits(settings: Settings) -> None:
     df = pd.DataFrame(
         [
