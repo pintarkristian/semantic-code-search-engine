@@ -253,6 +253,8 @@ class Searcher:
         if not query:
             raise ValueError("query must contain non-whitespace text")
         k = k if k is not None else self.settings.top_k_return
+        if k <= 0:
+            raise ValueError("k must be positive")
         reranker_enabled = self.settings.use_reranker if use_reranker is None else use_reranker
         candidates = self.candidates(query)
         ranked = self._maybe_rerank(query, candidates, reranker_enabled)
