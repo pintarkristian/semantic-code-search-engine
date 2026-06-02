@@ -238,6 +238,16 @@ def test_search_rejects_wrong_query_dimension(tmp_path: Path) -> None:
         store.search(np.zeros(MOCK_DIM + 1, dtype=np.float32), k=1)
 
 
+def test_search_rejects_non_finite_query_vector(tmp_path: Path) -> None:
+    vecs = _unit_vectors(10)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+    query = vecs[0].copy()
+    query[0] = np.nan
+    with pytest.raises(ValueError, match="finite"):
+        store.search(query, k=1)
+
+
 def test_search_before_build_raises(tmp_path: Path) -> None:
     store = VectorStore(_settings(tmp_path))
     with pytest.raises(RuntimeError, match="build"):
