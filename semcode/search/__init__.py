@@ -184,6 +184,8 @@ class Searcher:
         self._store = store
         self._meta = meta
         if "vector_id" in meta.columns:
+            if meta["vector_id"].duplicated().any():
+                raise ValueError("Metadata vector_id values must be unique.")
             self._doc_id_to_pos = {
                 int(doc_id): int(pos) for pos, doc_id in enumerate(meta["vector_id"].tolist())
             }
