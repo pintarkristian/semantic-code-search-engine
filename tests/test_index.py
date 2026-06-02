@@ -125,6 +125,12 @@ def test_build_empty_corpus(tmp_path: Path) -> None:
     assert store.manifest["chunk_count"] == 0
 
 
+def test_build_rejects_zero_width_vectors(tmp_path: Path) -> None:
+    store = VectorStore(_settings(tmp_path))
+    with pytest.raises(ValueError, match="dimension"):
+        store.build(np.zeros((0, 0), dtype=np.float32))
+
+
 def test_build_rejects_1d_array(tmp_path: Path) -> None:
     store = VectorStore(_settings(tmp_path))
     with pytest.raises(ValueError, match="2-D"):

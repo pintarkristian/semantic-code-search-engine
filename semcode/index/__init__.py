@@ -94,6 +94,8 @@ class VectorStore:
         if not np.isfinite(vectors).all():
             raise ValueError("FAISS vectors must contain only finite values")
         n, dim = vectors.shape
+        if dim <= 0:
+            raise ValueError("FAISS vector dimension must be positive")
         ids = None if ids is None else np.ascontiguousarray(ids, dtype=np.int64)
         if ids is not None and len(ids) != n:
             raise ValueError(f"Expected {n} ids, got {len(ids)}")
