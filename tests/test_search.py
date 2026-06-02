@@ -135,6 +135,10 @@ class TestMakeSnippet:
     def test_empty_code(self) -> None:
         assert _make_snippet("", max_lines=6) == ""
 
+    def test_rejects_non_positive_max_lines(self) -> None:
+        with pytest.raises(ValueError, match="max_lines"):
+            _make_snippet("def f(): pass", max_lines=0)
+
     def test_short_code_unchanged(self) -> None:
         code = "x = 1\ny = 2"
         assert _make_snippet(code, max_lines=6) == code

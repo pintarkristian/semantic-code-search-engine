@@ -302,6 +302,8 @@ class Searcher:
 
 def _make_snippet(code: str, max_lines: int) -> str:
     """Return the first max_lines non-empty lines of code."""
+    if max_lines <= 0:
+        raise ValueError("max_lines must be positive")
     lines = code.splitlines()
     kept: list[str] = []
     for line in lines:
