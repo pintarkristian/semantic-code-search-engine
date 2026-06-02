@@ -556,6 +556,14 @@ def test_assign_vector_ids_rejects_duplicate_new_chunk_ids() -> None:
         IndexingPipeline._assign_vector_ids(df, None)
 
 
+def test_assign_vector_ids_rejects_duplicate_old_chunk_ids() -> None:
+    df = pd.DataFrame({"chunk_id": ["new"]})
+    old_df = pd.DataFrame({"chunk_id": ["same", "same"], "vector_id": [0, 1]})
+
+    with pytest.raises(ValueError, match="previous metadata"):
+        IndexingPipeline._assign_vector_ids(df, old_df)
+
+
 def test_pipeline_produces_faiss_index(tmp_path: Path) -> None:
     s = _settings(tmp_path)
     pipeline = IndexingPipeline(s, embedder=_mock_embedder(s))
