@@ -555,6 +555,10 @@ class TestRRF:
         fused = _reciprocal_rank_fusion(dense, bm25, dense_weight=0.0, bm25_weight=0.0)
         assert all(f == 0.0 for *_, f in fused)
 
+    def test_rejects_non_positive_rrf_k(self) -> None:
+        with pytest.raises(ValueError, match="RRF k"):
+            _reciprocal_rank_fusion([(0, 0.9)], [], dense_weight=1.0, bm25_weight=0.0, k=0)
+
 
 # ---------------------------------------------------------------------------
 # Hybrid Searcher — BM25 boost and weight extremes

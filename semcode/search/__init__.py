@@ -87,6 +87,9 @@ def _reciprocal_rank_fusion(
         fused_score descending.  Documents appearing in only one list get
         a zero contribution from the missing source.
     """
+    if k <= 0:
+        raise ValueError("RRF k must be positive")
+
     dense_map: dict[int, tuple[int, float]] = {
         row_idx: (rank + 1, score) for rank, (row_idx, score) in enumerate(dense_hits)
     }
