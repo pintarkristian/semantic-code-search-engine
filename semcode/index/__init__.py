@@ -94,6 +94,10 @@ class VectorStore:
         if not np.isfinite(vectors).all():
             raise ValueError("FAISS vectors must contain only finite values")
         n, dim = vectors.shape
+        # Even an empty index must keep the real embedding width in its manifest;
+        # dimension zero would make later load-time validation meaningless.
+        if dim <= 0:
+            raise ValueError("FAISS vector dimension must be positive")
         ids = None if ids is None else np.ascontiguousarray(ids, dtype=np.int64)
         if ids is not None and len(ids) != n:
             raise ValueError(f"Expected {n} ids, got {len(ids)}")
@@ -166,6 +170,10 @@ class VectorStore:
 
         if add_vectors.ndim != 2:
             raise ValueError(f"Expected 2-D add_vectors, got shape {add_vectors.shape}")
+        if not np.isfinite(add_vectors).all():
+            raise ValueError("FAISS add_vectors must contain only finite values")
+        if len(np.unique(remove_ids)) != len(remove_ids):
+            raise ValueError("FAISS remove ids must be unique")
         expected_dim = int(self._index.d)
         if add_vectors.shape[1] != expected_dim:
             raise ValueError(
@@ -226,7 +234,10 @@ class VectorStore:
         if not manifest_path.exists():
             raise FileNotFoundError(f"No manifest at {manifest_path}")
 
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ManifestMismatchError(f"Index manifest is not valid JSON: {exc}") from exc
         if not isinstance(manifest, dict):
             raise ManifestMismatchError("Index manifest must be a JSON object.")
         self._validate_manifest(manifest, expected_dim=expected_dim)
@@ -253,8 +264,13 @@ class VectorStore:
                 f"Index was built with model '{saved_model}' but settings specify "
                 f"'{current_model}'. Re-index with --rebuild."
             )
+        saved_dim = manifest.get("dimension")
+        if not isinstance(saved_dim, int) or saved_dim <= 0:
+            raise ManifestMismatchError("Index manifest dimension must be a positive integer.")
+        saved_chunks = manifest.get("chunk_count")
+        if not isinstance(saved_chunks, int) or saved_chunks < 0:
+            raise ManifestMismatchError("Index manifest chunk_count must be a non-negative integer.")
         if expected_dim is not None:
-            saved_dim = manifest.get("dimension")
             if saved_dim != expected_dim:
                 raise ManifestMismatchError(
                     f"Index dimension {saved_dim} does not match "
@@ -287,6 +303,8 @@ class VectorStore:
             vec = vec[np.newaxis, :]
         if vec.ndim != 2 or vec.shape[0] != 1:
             raise ValueError(f"Expected one query vector, got shape {vec.shape}")
+        if not np.isfinite(vec).all():
+            raise ValueError("query vector must contain only finite values")
         expected_dim = int(self._index.d)
         if vec.shape[1] != expected_dim:
             raise ValueError(f"Expected query dimension {expected_dim}, got {vec.shape[1]}")
@@ -543,11 +561,17 @@ class IndexingPipeline:
         df: pd.DataFrame,
         old_df: pd.DataFrame | None,
     ) -> pd.DataFrame:
+        IndexingPipeline._validate_unique_chunk_ids(df, name="new metadata")
         out = df.copy()
         if old_df is None or "vector_id" not in old_df.columns:
             out["vector_id"] = list(range(len(out)))
             return out
 
+        IndexingPipeline._validate_unique_chunk_ids(old_df, name="previous metadata")
+        # Stable FAISS IDs are reused across incremental runs. Duplicate IDs in
+        # old metadata would make remove/add diffs target the wrong vectors.
+        if old_df["vector_id"].duplicated().any():
+            raise ValueError("previous metadata vector_id values must be unique")
         old_ids = {str(row["chunk_id"]): int(row["vector_id"]) for _, row in old_df.iterrows()}
         next_id = max(old_ids.values(), default=-1) + 1
         vector_ids: list[int] = []
@@ -560,6 +584,11 @@ class IndexingPipeline:
                 next_id += 1
         out["vector_id"] = vector_ids
         return out
+
+    @staticmethod
+    def _validate_unique_chunk_ids(df: pd.DataFrame, *, name: str) -> None:
+        if "chunk_id" in df.columns and df["chunk_id"].astype(str).duplicated().any():
+            raise ValueError(f"{name} chunk_id values must be unique")
 
     @staticmethod
     def _index_diff(old_df: pd.DataFrame | None, new_df: pd.DataFrame) -> dict[str, list]:

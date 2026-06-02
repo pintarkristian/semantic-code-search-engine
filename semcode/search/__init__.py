@@ -87,6 +87,9 @@ def _reciprocal_rank_fusion(
         fused_score descending.  Documents appearing in only one list get
         a zero contribution from the missing source.
     """
+    if k <= 0:
+        raise ValueError("RRF k must be positive")
+
     dense_map: dict[int, tuple[int, float]] = {
         row_idx: (rank + 1, score) for rank, (row_idx, score) in enumerate(dense_hits)
     }
@@ -156,6 +159,19 @@ class Searcher:
         store.load(expected_dim=self.embedder.dimension)
 
         meta = pd.read_parquet(meta_path)
+        required_columns = {
+            "chunk_id",
+            "file_path",
+            "symbol_name",
+            "symbol_type",
+            "language",
+            "start_line",
+            "end_line",
+            "code",
+        }
+        missing_columns = sorted(required_columns - set(meta.columns))
+        if missing_columns:
+            raise ValueError(f"Metadata is missing required columns: {missing_columns}")
 
         bm25_path = bm25_corpus_path(self.settings.faiss_index_path)
         if bm25_path.exists():
@@ -168,6 +184,8 @@ class Searcher:
         self._store = store
         self._meta = meta
         if "vector_id" in meta.columns:
+            if meta["vector_id"].duplicated().any():
+                raise ValueError("Metadata vector_id values must be unique.")
             self._doc_id_to_pos = {
                 int(doc_id): int(pos) for pos, doc_id in enumerate(meta["vector_id"].tolist())
             }
@@ -253,6 +271,8 @@ class Searcher:
         if not query:
             raise ValueError("query must contain non-whitespace text")
         k = k if k is not None else self.settings.top_k_return
+        if k <= 0:
+            raise ValueError("k must be positive")
         reranker_enabled = self.settings.use_reranker if use_reranker is None else use_reranker
         candidates = self.candidates(query)
         ranked = self._maybe_rerank(query, candidates, reranker_enabled)
@@ -300,6 +320,8 @@ class Searcher:
 
 def _make_snippet(code: str, max_lines: int) -> str:
     """Return the first max_lines non-empty lines of code."""
+    if max_lines <= 0:
+        raise ValueError("max_lines must be positive")
     lines = code.splitlines()
     kept: list[str] = []
     for line in lines:

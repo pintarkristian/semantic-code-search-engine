@@ -135,6 +135,10 @@ class TestMakeSnippet:
     def test_empty_code(self) -> None:
         assert _make_snippet("", max_lines=6) == ""
 
+    def test_rejects_non_positive_max_lines(self) -> None:
+        with pytest.raises(ValueError, match="max_lines"):
+            _make_snippet("def f(): pass", max_lines=0)
+
     def test_short_code_unchanged(self) -> None:
         code = "x = 1\ny = 2"
         assert _make_snippet(code, max_lines=6) == code
@@ -208,6 +212,12 @@ class TestSearcher:
         with pytest.raises(ValueError, match="k must be positive"):
             searcher.candidates("function", k=0)
 
+    def test_search_rejects_non_positive_k(self, tmp_path: Path) -> None:
+        settings, embedder, _ = _build_index(tmp_path)
+        searcher = Searcher(settings, embedder=embedder)
+        with pytest.raises(ValueError, match="k must be positive"):
+            searcher.search("function", k=0)
+
     def test_search_trims_query_before_rerank(self, tmp_path: Path) -> None:
         settings = _settings(tmp_path)
         searcher = Searcher(settings, embedder=_mock_embedder(settings))
@@ -268,6 +278,25 @@ class TestSearcher:
 
         assert results
         assert bm25_path.exists()
+
+    def test_metadata_missing_required_columns_rejected(self, tmp_path: Path) -> None:
+        settings, embedder, df = _build_index(tmp_path)
+        df.drop(columns=["code"]).to_parquet(settings.metadata_path, index=False)
+
+        searcher = Searcher(settings, embedder=embedder)
+
+        with pytest.raises(ValueError, match="required columns"):
+            searcher.search("function", k=1)
+
+    def test_duplicate_metadata_vector_ids_rejected(self, tmp_path: Path) -> None:
+        settings, embedder, df = _build_index(tmp_path)
+        df["vector_id"] = [0] * len(df)
+        df.to_parquet(settings.metadata_path, index=False)
+
+        searcher = Searcher(settings, embedder=embedder)
+
+        with pytest.raises(ValueError, match="vector_id"):
+            searcher.search("function", k=1)
 
     def test_fused_score_positive(self, tmp_path: Path) -> None:
         settings, embedder, _ = _build_index(tmp_path)
@@ -544,6 +573,10 @@ class TestRRF:
         bm25 = [(0, 5.0)]
         fused = _reciprocal_rank_fusion(dense, bm25, dense_weight=0.0, bm25_weight=0.0)
         assert all(f == 0.0 for *_, f in fused)
+
+    def test_rejects_non_positive_rrf_k(self) -> None:
+        with pytest.raises(ValueError, match="RRF k"):
+            _reciprocal_rank_fusion([(0, 0.9)], [], dense_weight=1.0, bm25_weight=0.0, k=0)
 
 
 # ---------------------------------------------------------------------------

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from semcode.config import Settings
@@ -125,6 +126,12 @@ def test_build_empty_corpus(tmp_path: Path) -> None:
     assert store.manifest["chunk_count"] == 0
 
 
+def test_build_rejects_zero_width_vectors(tmp_path: Path) -> None:
+    store = VectorStore(_settings(tmp_path))
+    with pytest.raises(ValueError, match="dimension"):
+        store.build(np.zeros((0, 0), dtype=np.float32))
+
+
 def test_build_rejects_1d_array(tmp_path: Path) -> None:
     store = VectorStore(_settings(tmp_path))
     with pytest.raises(ValueError, match="2-D"):
@@ -230,6 +237,16 @@ def test_search_rejects_wrong_query_dimension(tmp_path: Path) -> None:
     store.build(vecs)
     with pytest.raises(ValueError, match="query dimension"):
         store.search(np.zeros(MOCK_DIM + 1, dtype=np.float32), k=1)
+
+
+def test_search_rejects_non_finite_query_vector(tmp_path: Path) -> None:
+    vecs = _unit_vectors(10)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+    query = vecs[0].copy()
+    query[0] = np.nan
+    with pytest.raises(ValueError, match="finite"):
+        store.search(query, k=1)
 
 
 def test_search_before_build_raises(tmp_path: Path) -> None:
@@ -373,6 +390,36 @@ def test_dimension_mismatch_raises(tmp_path: Path) -> None:
         store2.load(expected_dim=MOCK_DIM + 1)
 
 
+def test_load_rejects_invalid_manifest_dimension(tmp_path: Path) -> None:
+    vecs = _unit_vectors(5)
+    s = _settings(tmp_path)
+    store = VectorStore(s)
+    store.build(vecs)
+    store.save()
+    manifest_path = s.faiss_index_path.with_suffix(".json")
+    manifest = manifest_path.read_text(encoding="utf-8").replace(f'"dimension": {MOCK_DIM}', '"dimension": 0')
+    manifest_path.write_text(manifest, encoding="utf-8")
+
+    store2 = VectorStore(s)
+    with pytest.raises(ManifestMismatchError, match="positive integer"):
+        store2.load()
+
+
+def test_load_rejects_invalid_manifest_chunk_count(tmp_path: Path) -> None:
+    vecs = _unit_vectors(5)
+    s = _settings(tmp_path)
+    store = VectorStore(s)
+    store.build(vecs)
+    store.save()
+    manifest_path = s.faiss_index_path.with_suffix(".json")
+    manifest = manifest_path.read_text(encoding="utf-8").replace('"chunk_count": 5', '"chunk_count": -1')
+    manifest_path.write_text(manifest, encoding="utf-8")
+
+    store2 = VectorStore(s)
+    with pytest.raises(ManifestMismatchError, match="chunk_count"):
+        store2.load()
+
+
 def test_load_rejects_non_object_manifest(tmp_path: Path) -> None:
     vecs = _unit_vectors(5)
     s = _settings(tmp_path)
@@ -383,6 +430,19 @@ def test_load_rejects_non_object_manifest(tmp_path: Path) -> None:
 
     store2 = VectorStore(s)
     with pytest.raises(ManifestMismatchError, match="JSON object"):
+        store2.load()
+
+
+def test_load_rejects_invalid_manifest_json(tmp_path: Path) -> None:
+    vecs = _unit_vectors(5)
+    s = _settings(tmp_path)
+    store = VectorStore(s)
+    store.build(vecs)
+    store.save()
+    s.faiss_index_path.with_suffix(".json").write_text("{not-json", encoding="utf-8")
+
+    store2 = VectorStore(s)
+    with pytest.raises(ManifestMismatchError, match="not valid JSON"):
         store2.load()
 
 
@@ -421,6 +481,18 @@ def test_update_rejects_duplicate_add_ids(tmp_path: Path) -> None:
         )
 
 
+def test_update_rejects_duplicate_remove_ids(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs, ids=np.arange(3, dtype=np.int64))
+    with pytest.raises(ValueError, match="remove ids must be unique"):
+        store.update(
+            remove_ids=np.asarray([1, 1], dtype=np.int64),
+            add_vectors=np.zeros((0, MOCK_DIM), dtype=np.float32),
+            add_ids=np.asarray([], dtype=np.int64),
+        )
+
+
 def test_update_rejects_wrong_add_vector_dimension(tmp_path: Path) -> None:
     vecs = _unit_vectors(3)
     store = VectorStore(_settings(tmp_path))
@@ -429,6 +501,20 @@ def test_update_rejects_wrong_add_vector_dimension(tmp_path: Path) -> None:
         store.update(
             remove_ids=np.asarray([], dtype=np.int64),
             add_vectors=np.zeros((1, MOCK_DIM + 1), dtype=np.float32),
+            add_ids=np.asarray([3], dtype=np.int64),
+        )
+
+
+def test_update_rejects_non_finite_add_vectors(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs, ids=np.arange(3, dtype=np.int64))
+    add_vectors = _unit_vectors(1, seed=1)
+    add_vectors[0, 0] = np.inf
+    with pytest.raises(ValueError, match="finite"):
+        store.update(
+            remove_ids=np.asarray([], dtype=np.int64),
+            add_vectors=add_vectors,
             add_ids=np.asarray([3], dtype=np.int64),
         )
 
@@ -461,6 +547,29 @@ def test_pipeline_rejects_invalid_ivf_threshold(tmp_path: Path) -> None:
     s = _settings(tmp_path)
     with pytest.raises(ValueError, match="ivf_threshold"):
         IndexingPipeline(s, embedder=_mock_embedder(s), ivf_threshold=0)
+
+
+def test_assign_vector_ids_rejects_duplicate_new_chunk_ids() -> None:
+    df = pd.DataFrame({"chunk_id": ["same", "same"]})
+
+    with pytest.raises(ValueError, match="chunk_id"):
+        IndexingPipeline._assign_vector_ids(df, None)
+
+
+def test_assign_vector_ids_rejects_duplicate_old_chunk_ids() -> None:
+    df = pd.DataFrame({"chunk_id": ["new"]})
+    old_df = pd.DataFrame({"chunk_id": ["same", "same"], "vector_id": [0, 1]})
+
+    with pytest.raises(ValueError, match="previous metadata"):
+        IndexingPipeline._assign_vector_ids(df, old_df)
+
+
+def test_assign_vector_ids_rejects_duplicate_old_vector_ids() -> None:
+    df = pd.DataFrame({"chunk_id": ["new"]})
+    old_df = pd.DataFrame({"chunk_id": ["a", "b"], "vector_id": [0, 0]})
+
+    with pytest.raises(ValueError, match="vector_id"):
+        IndexingPipeline._assign_vector_ids(df, old_df)
 
 
 def test_pipeline_produces_faiss_index(tmp_path: Path) -> None:
