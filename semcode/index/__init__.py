@@ -559,6 +559,7 @@ class IndexingPipeline:
         df: pd.DataFrame,
         old_df: pd.DataFrame | None,
     ) -> pd.DataFrame:
+        IndexingPipeline._validate_unique_chunk_ids(df, name="new metadata")
         out = df.copy()
         if old_df is None or "vector_id" not in old_df.columns:
             out["vector_id"] = list(range(len(out)))
@@ -576,6 +577,11 @@ class IndexingPipeline:
                 next_id += 1
         out["vector_id"] = vector_ids
         return out
+
+    @staticmethod
+    def _validate_unique_chunk_ids(df: pd.DataFrame, *, name: str) -> None:
+        if "chunk_id" in df.columns and df["chunk_id"].astype(str).duplicated().any():
+            raise ValueError(f"{name} chunk_id values must be unique")
 
     @staticmethod
     def _index_diff(old_df: pd.DataFrame | None, new_df: pd.DataFrame) -> dict[str, list]:

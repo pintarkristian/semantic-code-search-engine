@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from semcode.config import Settings
@@ -546,6 +547,13 @@ def test_pipeline_rejects_invalid_ivf_threshold(tmp_path: Path) -> None:
     s = _settings(tmp_path)
     with pytest.raises(ValueError, match="ivf_threshold"):
         IndexingPipeline(s, embedder=_mock_embedder(s), ivf_threshold=0)
+
+
+def test_assign_vector_ids_rejects_duplicate_new_chunk_ids() -> None:
+    df = pd.DataFrame({"chunk_id": ["same", "same"]})
+
+    with pytest.raises(ValueError, match="chunk_id"):
+        IndexingPipeline._assign_vector_ids(df, None)
 
 
 def test_pipeline_produces_faiss_index(tmp_path: Path) -> None:
