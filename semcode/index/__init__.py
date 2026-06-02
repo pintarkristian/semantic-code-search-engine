@@ -94,6 +94,8 @@ class VectorStore:
         if not np.isfinite(vectors).all():
             raise ValueError("FAISS vectors must contain only finite values")
         n, dim = vectors.shape
+        # Even an empty index must keep the real embedding width in its manifest;
+        # dimension zero would make later load-time validation meaningless.
         if dim <= 0:
             raise ValueError("FAISS vector dimension must be positive")
         ids = None if ids is None else np.ascontiguousarray(ids, dtype=np.int64)
@@ -566,6 +568,8 @@ class IndexingPipeline:
             return out
 
         IndexingPipeline._validate_unique_chunk_ids(old_df, name="previous metadata")
+        # Stable FAISS IDs are reused across incremental runs. Duplicate IDs in
+        # old metadata would make remove/add diffs target the wrong vectors.
         if old_df["vector_id"].duplicated().any():
             raise ValueError("previous metadata vector_id values must be unique")
         old_ids = {str(row["chunk_id"]): int(row["vector_id"]) for _, row in old_df.iterrows()}
