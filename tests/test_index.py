@@ -439,6 +439,20 @@ def test_update_rejects_wrong_add_vector_dimension(tmp_path: Path) -> None:
         )
 
 
+def test_update_rejects_non_finite_add_vectors(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs, ids=np.arange(3, dtype=np.int64))
+    add_vectors = _unit_vectors(1, seed=1)
+    add_vectors[0, 0] = np.inf
+    with pytest.raises(ValueError, match="finite"):
+        store.update(
+            remove_ids=np.asarray([], dtype=np.int64),
+            add_vectors=add_vectors,
+            add_ids=np.asarray([3], dtype=np.int64),
+        )
+
+
 def test_update_requires_id_mapped_index(tmp_path: Path) -> None:
     vecs = _unit_vectors(3)
     store = VectorStore(_settings(tmp_path))

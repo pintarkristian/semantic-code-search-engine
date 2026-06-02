@@ -168,6 +168,8 @@ class VectorStore:
 
         if add_vectors.ndim != 2:
             raise ValueError(f"Expected 2-D add_vectors, got shape {add_vectors.shape}")
+        if not np.isfinite(add_vectors).all():
+            raise ValueError("FAISS add_vectors must contain only finite values")
         expected_dim = int(self._index.d)
         if add_vectors.shape[1] != expected_dim:
             raise ValueError(
