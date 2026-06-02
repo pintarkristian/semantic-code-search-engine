@@ -262,8 +262,10 @@ class VectorStore:
                 f"Index was built with model '{saved_model}' but settings specify "
                 f"'{current_model}'. Re-index with --rebuild."
             )
+        saved_dim = manifest.get("dimension")
+        if not isinstance(saved_dim, int) or saved_dim <= 0:
+            raise ManifestMismatchError("Index manifest dimension must be a positive integer.")
         if expected_dim is not None:
-            saved_dim = manifest.get("dimension")
             if saved_dim != expected_dim:
                 raise ManifestMismatchError(
                     f"Index dimension {saved_dim} does not match "

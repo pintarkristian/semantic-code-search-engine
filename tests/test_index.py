@@ -389,6 +389,21 @@ def test_dimension_mismatch_raises(tmp_path: Path) -> None:
         store2.load(expected_dim=MOCK_DIM + 1)
 
 
+def test_load_rejects_invalid_manifest_dimension(tmp_path: Path) -> None:
+    vecs = _unit_vectors(5)
+    s = _settings(tmp_path)
+    store = VectorStore(s)
+    store.build(vecs)
+    store.save()
+    manifest_path = s.faiss_index_path.with_suffix(".json")
+    manifest = manifest_path.read_text(encoding="utf-8").replace(f'"dimension": {MOCK_DIM}', '"dimension": 0')
+    manifest_path.write_text(manifest, encoding="utf-8")
+
+    store2 = VectorStore(s)
+    with pytest.raises(ManifestMismatchError, match="positive integer"):
+        store2.load()
+
+
 def test_load_rejects_non_object_manifest(tmp_path: Path) -> None:
     vecs = _unit_vectors(5)
     s = _settings(tmp_path)
