@@ -437,6 +437,18 @@ def test_update_rejects_duplicate_add_ids(tmp_path: Path) -> None:
         )
 
 
+def test_update_rejects_duplicate_remove_ids(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs, ids=np.arange(3, dtype=np.int64))
+    with pytest.raises(ValueError, match="remove ids must be unique"):
+        store.update(
+            remove_ids=np.asarray([1, 1], dtype=np.int64),
+            add_vectors=np.zeros((0, MOCK_DIM), dtype=np.float32),
+            add_ids=np.asarray([], dtype=np.int64),
+        )
+
+
 def test_update_rejects_wrong_add_vector_dimension(tmp_path: Path) -> None:
     vecs = _unit_vectors(3)
     store = VectorStore(_settings(tmp_path))
