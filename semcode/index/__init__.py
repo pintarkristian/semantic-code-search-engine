@@ -566,6 +566,8 @@ class IndexingPipeline:
             return out
 
         IndexingPipeline._validate_unique_chunk_ids(old_df, name="previous metadata")
+        if old_df["vector_id"].duplicated().any():
+            raise ValueError("previous metadata vector_id values must be unique")
         old_ids = {str(row["chunk_id"]): int(row["vector_id"]) for _, row in old_df.iterrows()}
         next_id = max(old_ids.values(), default=-1) + 1
         vector_ids: list[int] = []
