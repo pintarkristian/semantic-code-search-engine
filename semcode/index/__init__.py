@@ -265,6 +265,9 @@ class VectorStore:
         saved_dim = manifest.get("dimension")
         if not isinstance(saved_dim, int) or saved_dim <= 0:
             raise ManifestMismatchError("Index manifest dimension must be a positive integer.")
+        saved_chunks = manifest.get("chunk_count")
+        if not isinstance(saved_chunks, int) or saved_chunks < 0:
+            raise ManifestMismatchError("Index manifest chunk_count must be a non-negative integer.")
         if expected_dim is not None:
             if saved_dim != expected_dim:
                 raise ManifestMismatchError(
