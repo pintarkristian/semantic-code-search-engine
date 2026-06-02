@@ -159,6 +159,19 @@ class Searcher:
         store.load(expected_dim=self.embedder.dimension)
 
         meta = pd.read_parquet(meta_path)
+        required_columns = {
+            "chunk_id",
+            "file_path",
+            "symbol_name",
+            "symbol_type",
+            "language",
+            "start_line",
+            "end_line",
+            "code",
+        }
+        missing_columns = sorted(required_columns - set(meta.columns))
+        if missing_columns:
+            raise ValueError(f"Metadata is missing required columns: {missing_columns}")
 
         bm25_path = bm25_corpus_path(self.settings.faiss_index_path)
         if bm25_path.exists():

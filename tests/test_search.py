@@ -279,6 +279,15 @@ class TestSearcher:
         assert results
         assert bm25_path.exists()
 
+    def test_metadata_missing_required_columns_rejected(self, tmp_path: Path) -> None:
+        settings, embedder, df = _build_index(tmp_path)
+        df.drop(columns=["code"]).to_parquet(settings.metadata_path, index=False)
+
+        searcher = Searcher(settings, embedder=embedder)
+
+        with pytest.raises(ValueError, match="required columns"):
+            searcher.search("function", k=1)
+
     def test_fused_score_positive(self, tmp_path: Path) -> None:
         settings, embedder, _ = _build_index(tmp_path)
         searcher = Searcher(settings, embedder=embedder)
