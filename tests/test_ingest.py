@@ -93,6 +93,17 @@ def test_python_language_detected(df: pd.DataFrame) -> None:
     assert "python" in df["language"].values
 
 
+def test_uppercase_source_extension_detected(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "APP.PY").write_text("def app():\n    return True\n")
+
+    df = CodeIngestor(repo, _settings(tmp_path)).ingest()
+
+    assert len(df) == 1
+    assert df.iloc[0]["language"] == "python"
+
+
 def test_javascript_language_detected(df: pd.DataFrame) -> None:
     assert "javascript" in df["language"].values
 

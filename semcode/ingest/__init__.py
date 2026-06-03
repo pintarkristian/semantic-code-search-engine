@@ -135,7 +135,7 @@ class CodeIngestor:
                 continue
             if self._is_gitignored(rel):
                 continue
-            if path.suffix in EXT_TO_LANG:
+            if path.suffix.lower() in EXT_TO_LANG:
                 yield path
 
     # ------------------------------------------------------------------
@@ -151,7 +151,7 @@ class CodeIngestor:
     def _chunk_file(self, file_path: Path) -> list[dict]:
         rel = file_path.relative_to(self.repo_path)
         rel_str = str(rel).replace("\\", "/")
-        language = EXT_TO_LANG[file_path.suffix]
+        language = EXT_TO_LANG[file_path.suffix.lower()]
 
         try:
             source_bytes = file_path.read_bytes()
