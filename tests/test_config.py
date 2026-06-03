@@ -41,6 +41,10 @@ def test_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
     assert s.embedding_device == "cuda"
 
 
+def test_debug_release_alias_is_trimmed() -> None:
+    assert Settings(debug=" prod ").debug is False
+
+
 def test_path_fields_are_path_objects(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATA_DIR", "/tmp/mydata")
     monkeypatch.setenv("FAISS_INDEX_PATH", "/tmp/mydata/custom.faiss")
