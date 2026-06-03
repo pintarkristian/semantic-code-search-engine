@@ -194,7 +194,8 @@ def create_app(
     async def health() -> HealthResponse:
         """Return liveness plus readiness state."""
         missing = _missing_index_artifacts(app_settings)
-        ready = bool(app.state.index_loaded) and not missing
+        manifest = _read_index_manifest(app_settings)
+        ready = bool(app.state.index_loaded) and not missing and "error" not in manifest
         return HealthResponse(
             status="up",
             ready=ready,
