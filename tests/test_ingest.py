@@ -344,6 +344,28 @@ def test_gitignore_respected(tmp_path: Path) -> None:
     assert any("public.py" in fp for fp in df["file_path"])
 
 
+def test_unreadable_gitignore_does_not_block_ingest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".gitignore").write_text("ignored.py\n")
+    (repo / "public.py").write_text("def public_fn(): pass\n")
+    original_read_text = Path.read_text
+
+    def fake_read_text(self: Path, *args: object, **kwargs: object) -> str:
+        if self.name == ".gitignore":
+            raise OSError("permission denied")
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", fake_read_text)
+
+    df = CodeIngestor(repo, _settings(tmp_path)).ingest()
+
+    assert any("public.py" in fp for fp in df["file_path"])
+
+
 # ---------------------------------------------------------------------------
 # Sliding-window fallback
 # ---------------------------------------------------------------------------

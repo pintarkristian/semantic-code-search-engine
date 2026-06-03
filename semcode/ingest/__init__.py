@@ -112,8 +112,8 @@ class CodeIngestor:
             try:
                 lines = gi_path.read_text(encoding="utf-8", errors="replace").splitlines()
                 return pathspec.PathSpec.from_lines("gitignore", lines)
-            except OSError:
-                pass
+            except OSError as exc:
+                log.warning("cannot read .gitignore", path=str(gi_path), error=str(exc))
         return None
 
     def _is_gitignored(self, rel: Path) -> bool:
