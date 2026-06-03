@@ -195,6 +195,8 @@ def create_app(
         """Return liveness plus readiness state."""
         missing = _missing_index_artifacts(app_settings)
         manifest = _read_index_manifest(app_settings)
+        # Artifact existence is not enough for readiness; a corrupted manifest
+        # means the searcher cannot be reliably loaded after a restart.
         ready = bool(app.state.index_loaded) and not missing and "error" not in manifest
         return HealthResponse(
             status="up",
@@ -606,6 +608,8 @@ def _delete_artifacts(settings: Settings) -> None:
 
 
 def _delete_artifact_path(path: Path) -> bool:
+    # Treat symlinks as links, not directories. Index cleanup should never
+    # recurse through a link that happens to point at a directory.
     if path.is_symlink() or path.is_file():
         path.unlink()
         return True
