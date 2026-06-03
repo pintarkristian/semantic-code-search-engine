@@ -240,6 +240,16 @@ async def test_search_returns_ranked_results_against_fixture(tmp_path: Path) -> 
 
 
 @pytest.mark.asyncio
+async def test_blank_index_job_id_returns_422(tmp_path: Path) -> None:
+    app = create_app(_settings(tmp_path))
+    async with _client(app) as client:
+        response = await client.get("/index/status/%20%20%20")
+
+    assert response.status_code == 422
+    assert response.json()["error"]["message"] == "job_id must contain non-whitespace text"
+
+
+@pytest.mark.asyncio
 async def test_e2e_index_fixture_then_query_api_ranks_expected_symbols(tmp_path: Path) -> None:
     app, _ = _preindexed_bm25_app(tmp_path)
     async with _client(app) as client:

@@ -252,6 +252,9 @@ def create_app(
     @app.get("/index/status/{job_id}", response_model=IndexStatusResponse, tags=["index"])
     async def index_status(job_id: str) -> IndexStatusResponse:
         """Return the current state of a background indexing job."""
+        job_id = job_id.strip()
+        if not job_id:
+            raise HTTPException(status_code=422, detail="job_id must contain non-whitespace text")
         with jobs_lock:
             job = jobs.get(job_id)
             if job is None:
