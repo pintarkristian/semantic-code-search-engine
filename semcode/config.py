@@ -78,7 +78,7 @@ class Settings(BaseSettings):
     @field_validator("log_format")
     @classmethod
     def _validate_log_format(cls, value: str) -> str:
-        normalized = value.lower()
+        normalized = value.strip().lower()
         if normalized not in {"pretty", "json"}:
             raise ValueError("log_format must be 'pretty' or 'json'")
         return normalized

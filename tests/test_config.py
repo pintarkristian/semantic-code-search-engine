@@ -97,6 +97,10 @@ def test_invalid_log_format_rejected() -> None:
         Settings(log_format="plain")
 
 
+def test_log_format_is_trimmed_and_normalized() -> None:
+    assert Settings(log_format=" JSON ").log_format == "json"
+
+
 def test_invalid_embedding_device_rejected() -> None:
     with pytest.raises(ValidationError, match="embedding_device"):
         Settings(embedding_device="tpu")
