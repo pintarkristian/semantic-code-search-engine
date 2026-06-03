@@ -387,6 +387,19 @@ async def test_rate_limit_prunes_stale_clients(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_stats_handles_corrupt_metadata(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    settings.metadata_path.write_text("not parquet")
+    app = create_app(settings)
+    async with _client(app) as client:
+        response = await client.get("/stats")
+
+    assert response.status_code == 200
+    assert response.json()["chunk_count"] == 0
+    assert response.json()["language_breakdown"] == {}
+
+
+@pytest.mark.asyncio
 async def test_blank_forwarded_for_does_not_create_empty_rate_limit_bucket(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     settings.rate_limit_requests = 10

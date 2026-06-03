@@ -315,13 +315,16 @@ def create_app(
         chunk_count = 0
         language_breakdown: dict[str, int] = {}
         if app_settings.metadata_path.exists():
-            df = pd.read_parquet(app_settings.metadata_path)
-            chunk_count = int(len(df))
-            if "language" in df.columns:
-                language_breakdown = {
-                    str(lang): int(count)
-                    for lang, count in df["language"].value_counts().sort_index().items()
-                }
+            try:
+                df = pd.read_parquet(app_settings.metadata_path)
+                chunk_count = int(len(df))
+                if "language" in df.columns:
+                    language_breakdown = {
+                        str(lang): int(count)
+                        for lang, count in df["language"].value_counts().sort_index().items()
+                    }
+            except Exception as exc:
+                log.warning("failed to read metadata for stats", error=str(exc))
 
         _update_index_size_metric(app_settings)
         return StatsResponse(
