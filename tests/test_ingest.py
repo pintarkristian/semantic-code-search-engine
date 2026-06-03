@@ -92,6 +92,14 @@ def test_chunk_id_rejects_invalid_line_spans(ingestor: CodeIngestor) -> None:
         ingestor._make_chunk_id("auth.py", "validate", 10, 9)
 
 
+def test_chunk_id_rejects_blank_components(ingestor: CodeIngestor) -> None:
+    with pytest.raises(ValueError, match="path and symbol"):
+        ingestor._make_chunk_id("", "validate", 1, 10)
+
+    with pytest.raises(ValueError, match="path and symbol"):
+        ingestor._make_chunk_id("auth.py", "   ", 1, 10)
+
+
 # ---------------------------------------------------------------------------
 # Language detection
 # ---------------------------------------------------------------------------
