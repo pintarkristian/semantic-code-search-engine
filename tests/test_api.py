@@ -9,7 +9,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from semcode.api import create_app
+from semcode.api import _set_job_status, create_app
 from semcode.config import Settings
 from semcode.embed import Embedder
 from semcode.index import IndexingPipeline
@@ -74,6 +74,13 @@ def _preindexed_bm25_app(tmp_path: Path):
 class _ValidationErrorSearcher:
     def search(self, query: str, k: int, use_reranker: bool):  # type: ignore[no-untyped-def]
         raise ValueError("k must be positive")
+
+
+def test_set_job_status_rejects_unsupported_values() -> None:
+    job = {"status": "queued"}
+
+    with pytest.raises(ValueError, match="Unsupported"):
+        _set_job_status(job, "cancelled")  # type: ignore[arg-type]
 
 
 @pytest.mark.asyncio

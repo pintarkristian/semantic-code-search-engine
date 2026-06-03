@@ -490,7 +490,7 @@ def _run_index_job(app: FastAPI, job_id: str, repo_path: Path, rebuild: bool) ->
     jobs_lock: Lock = app.state.jobs_lock
 
     with jobs_lock:
-        jobs[job_id]["status"] = "running"
+        _set_job_status(jobs[job_id], "running")
         jobs[job_id]["started_at"] = time.time()
 
     try:
@@ -500,9 +500,9 @@ def _run_index_job(app: FastAPI, job_id: str, repo_path: Path, rebuild: bool) ->
         app.state.index_loaded = _load_searcher(app)
         _update_index_size_metric(settings)
         with jobs_lock:
+            _set_job_status(jobs[job_id], "succeeded")
             jobs[job_id].update(
                 {
-                    "status": "succeeded",
                     "finished_at": time.time(),
                     "chunks": int(len(df)),
                     "dimension": int(vectors.shape[1]) if vectors.ndim == 2 and len(df) else 0,
@@ -511,14 +511,21 @@ def _run_index_job(app: FastAPI, job_id: str, repo_path: Path, rebuild: bool) ->
     except Exception as exc:  # pragma: no cover - exercised through integration behavior
         app.state.index_loaded = False
         with jobs_lock:
+            _set_job_status(jobs[job_id], "failed")
             jobs[job_id].update(
                 {
-                    "status": "failed",
                     "finished_at": time.time(),
                     "error": str(exc),
                 }
             )
         log.exception("index job failed", job_id=job_id, error=str(exc))
+
+
+def _set_job_status(job: dict, status: JobStatus) -> None:
+    allowed = {"queued", "running", "succeeded", "failed"}
+    if status not in allowed:
+        raise ValueError(f"Unsupported index job status: {status}")
+    job["status"] = status
 
 
 def _load_searcher(app: FastAPI) -> bool:
