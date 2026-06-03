@@ -132,6 +132,11 @@ class TestMakeSnippet:
         snippet = _make_snippet(code, max_lines=10)
         assert not snippet.endswith("\n")
 
+    def test_strips_leading_blanks(self) -> None:
+        code = "\n\n\ndef f():\n    pass"
+        snippet = _make_snippet(code, max_lines=10)
+        assert snippet.startswith("def f")
+
     def test_empty_code(self) -> None:
         assert _make_snippet("", max_lines=6) == ""
 
