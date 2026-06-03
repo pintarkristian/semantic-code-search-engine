@@ -84,6 +84,14 @@ def test_chunk_ids_are_stable_across_repo_locations(tmp_path: Path) -> None:
     assert ids_a == ids_b
 
 
+def test_chunk_id_rejects_invalid_line_spans(ingestor: CodeIngestor) -> None:
+    with pytest.raises(ValueError, match="line span"):
+        ingestor._make_chunk_id("auth.py", "validate", 0, 10)
+
+    with pytest.raises(ValueError, match="line span"):
+        ingestor._make_chunk_id("auth.py", "validate", 10, 9)
+
+
 # ---------------------------------------------------------------------------
 # Language detection
 # ---------------------------------------------------------------------------

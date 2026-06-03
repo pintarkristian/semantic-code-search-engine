@@ -145,6 +145,8 @@ class CodeIngestor:
     def _make_chunk_id(
         self, rel_path: str, symbol_name: str, start_line: int, end_line: int
     ) -> str:
+        if start_line < 1 or end_line < start_line:
+            raise ValueError("chunk line span must be 1-indexed and ordered")
         key = f"{rel_path}:{symbol_name}:{start_line}:{end_line}"
         return hashlib.sha256(key.encode()).hexdigest()[:16]
 
