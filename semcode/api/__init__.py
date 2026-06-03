@@ -340,11 +340,7 @@ def create_app(
         """Delete persisted index artifacts and reset the app-scoped searcher."""
         deleted: list[str] = []
         for path in _artifact_paths(app_settings):
-            if path.is_dir():
-                shutil.rmtree(path)
-                deleted.append(str(path))
-            elif path.exists():
-                path.unlink()
+            if _delete_artifact_path(path):
                 deleted.append(str(path))
 
         app.state.searcher = Searcher(app_settings)
@@ -606,10 +602,17 @@ def _artifact_paths(settings: Settings) -> list[Path]:
 
 def _delete_artifacts(settings: Settings) -> None:
     for path in _artifact_paths(settings):
-        if path.is_dir():
-            shutil.rmtree(path)
-        elif path.exists():
-            path.unlink()
+        _delete_artifact_path(path)
+
+
+def _delete_artifact_path(path: Path) -> bool:
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+        return True
+    if path.is_dir():
+        shutil.rmtree(path)
+        return True
+    return False
 
 
 app = create_app()

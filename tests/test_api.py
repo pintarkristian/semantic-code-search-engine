@@ -9,7 +9,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from semcode.api import _set_job_status, create_app
+from semcode.api import _delete_artifact_path, _set_job_status, create_app
 from semcode.config import Settings
 from semcode.embed import Embedder
 from semcode.index import IndexingPipeline
@@ -81,6 +81,28 @@ def test_set_job_status_rejects_unsupported_values() -> None:
 
     with pytest.raises(ValueError, match="Unsupported"):
         _set_job_status(job, "cancelled")  # type: ignore[arg-type]
+
+
+def test_delete_artifact_path_unlinks_files(tmp_path: Path) -> None:
+    artifact = tmp_path / "artifact.bin"
+    artifact.write_text("data")
+
+    assert _delete_artifact_path(artifact) is True
+    assert not artifact.exists()
+
+
+def test_delete_artifact_path_unlinks_directory_symlink(tmp_path: Path) -> None:
+    target = tmp_path / "target"
+    target.mkdir()
+    link = tmp_path / "link"
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlinks are not available in this environment")
+
+    assert _delete_artifact_path(link) is True
+    assert not link.exists()
+    assert target.exists()
 
 
 @pytest.mark.asyncio
