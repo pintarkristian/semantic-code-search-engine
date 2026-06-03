@@ -208,12 +208,13 @@ def create_app(
     async def version() -> VersionResponse:
         """Return app, model, and persisted index manifest versions."""
         missing = _missing_index_artifacts(app_settings)
+        manifest = _read_index_manifest(app_settings)
         return VersionResponse(
             app_version=__version__,
             model_name=app_settings.embedding_model_name,
-            ready=bool(app.state.index_loaded) and not missing,
+            ready=bool(app.state.index_loaded) and not missing and "error" not in manifest,
             index_loaded=bool(app.state.index_loaded),
-            index_manifest=_read_index_manifest(app_settings),
+            index_manifest=manifest,
         )
 
     @app.get("/metrics", include_in_schema=False)

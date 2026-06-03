@@ -163,6 +163,7 @@ async def test_version_reports_manifest_read_error(tmp_path: Path) -> None:
 
     assert response.status_code == 200
     assert "failed to read manifest" in response.json()["index_manifest"]["error"]
+    assert response.json()["ready"] is False
 
 
 @pytest.mark.asyncio
