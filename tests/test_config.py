@@ -41,6 +41,10 @@ def test_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
     assert s.embedding_device == "cuda"
 
 
+def test_debug_release_alias_is_trimmed() -> None:
+    assert Settings(debug=" prod ").debug is False
+
+
 def test_path_fields_are_path_objects(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATA_DIR", "/tmp/mydata")
     monkeypatch.setenv("FAISS_INDEX_PATH", "/tmp/mydata/custom.faiss")
@@ -88,14 +92,26 @@ def test_invalid_log_level_rejected() -> None:
         Settings(log_level="verbose")
 
 
+def test_log_level_is_trimmed_and_normalized() -> None:
+    assert Settings(log_level=" info ").log_level == "INFO"
+
+
 def test_invalid_log_format_rejected() -> None:
     with pytest.raises(ValidationError, match="log_format"):
         Settings(log_format="plain")
 
 
+def test_log_format_is_trimmed_and_normalized() -> None:
+    assert Settings(log_format=" JSON ").log_format == "json"
+
+
 def test_invalid_embedding_device_rejected() -> None:
     with pytest.raises(ValidationError, match="embedding_device"):
         Settings(embedding_device="tpu")
+
+
+def test_embedding_device_is_trimmed_and_normalized() -> None:
+    assert Settings(embedding_device=" CUDA ").embedding_device == "cuda"
 
 
 def test_negative_retrieval_weight_rejected() -> None:

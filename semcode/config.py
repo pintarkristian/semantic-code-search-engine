@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     @field_validator("debug", mode="before")
     @classmethod
     def _parse_debug(cls, value: object) -> object:
-        if isinstance(value, str) and value.lower() in {"release", "prod", "production"}:
+        if isinstance(value, str) and value.strip().lower() in {"release", "prod", "production"}:
             return False
         return value
 
@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     @field_validator("log_level")
     @classmethod
     def _validate_log_level(cls, value: str) -> str:
-        normalized = value.upper()
+        normalized = value.strip().upper()
         allowed = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
         if normalized not in allowed:
             raise ValueError(f"log_level must be one of: {', '.join(sorted(allowed))}")
@@ -78,7 +78,7 @@ class Settings(BaseSettings):
     @field_validator("log_format")
     @classmethod
     def _validate_log_format(cls, value: str) -> str:
-        normalized = value.lower()
+        normalized = value.strip().lower()
         if normalized not in {"pretty", "json"}:
             raise ValueError("log_format must be 'pretty' or 'json'")
         return normalized
@@ -86,7 +86,7 @@ class Settings(BaseSettings):
     @field_validator("embedding_device")
     @classmethod
     def _validate_embedding_device(cls, value: str) -> str:
-        normalized = value.lower()
+        normalized = value.strip().lower()
         if normalized not in {"cpu", "cuda"}:
             raise ValueError("embedding_device must be 'cpu' or 'cuda'")
         return normalized

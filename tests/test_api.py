@@ -9,7 +9,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from semcode.api import create_app
+from semcode.api import _delete_artifact_path, _set_job_status, create_app
 from semcode.config import Settings
 from semcode.embed import Embedder
 from semcode.index import IndexingPipeline
@@ -76,6 +76,35 @@ class _ValidationErrorSearcher:
         raise ValueError("k must be positive")
 
 
+def test_set_job_status_rejects_unsupported_values() -> None:
+    job = {"status": "queued"}
+
+    with pytest.raises(ValueError, match="Unsupported"):
+        _set_job_status(job, "cancelled")  # type: ignore[arg-type]
+
+
+def test_delete_artifact_path_unlinks_files(tmp_path: Path) -> None:
+    artifact = tmp_path / "artifact.bin"
+    artifact.write_text("data")
+
+    assert _delete_artifact_path(artifact) is True
+    assert not artifact.exists()
+
+
+def test_delete_artifact_path_unlinks_directory_symlink(tmp_path: Path) -> None:
+    target = tmp_path / "target"
+    target.mkdir()
+    link = tmp_path / "link"
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlinks are not available in this environment")
+
+    assert _delete_artifact_path(link) is True
+    assert not link.exists()
+    assert target.exists()
+
+
 @pytest.mark.asyncio
 async def test_health_without_index(tmp_path: Path) -> None:
     app = create_app(_settings(tmp_path))
@@ -128,6 +157,17 @@ async def test_health_not_ready_when_manifest_missing(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_health_not_ready_when_manifest_corrupted_after_startup(tmp_path: Path) -> None:
+    app, settings = _preindexed_app(tmp_path)
+    async with _client(app) as client:
+        settings.faiss_index_path.with_suffix(".json").write_text("{not-json")
+        response = await client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json()["ready"] is False
+
+
+@pytest.mark.asyncio
 async def test_corrupt_manifest_does_not_break_startup(tmp_path: Path) -> None:
     app, settings = _preindexed_app(tmp_path)
     settings.faiss_index_path.with_suffix(".json").write_text("{not-json")
@@ -152,6 +192,7 @@ async def test_version_reports_manifest_read_error(tmp_path: Path) -> None:
 
     assert response.status_code == 200
     assert "failed to read manifest" in response.json()["index_manifest"]["error"]
+    assert response.json()["ready"] is False
 
 
 @pytest.mark.asyncio
@@ -225,6 +266,16 @@ async def test_search_returns_ranked_results_against_fixture(tmp_path: Path) -> 
         range(1, len(body["results"]) + 1)
     )
     assert any("validate" in result["symbol_name"].lower() for result in body["results"])
+
+
+@pytest.mark.asyncio
+async def test_blank_index_job_id_returns_422(tmp_path: Path) -> None:
+    app = create_app(_settings(tmp_path))
+    async with _client(app) as client:
+        response = await client.get("/index/status/%20%20%20")
+
+    assert response.status_code == 422
+    assert response.json()["error"]["message"] == "job_id must contain non-whitespace text"
 
 
 @pytest.mark.asyncio
@@ -355,6 +406,19 @@ async def test_rate_limit_prunes_stale_clients(tmp_path: Path) -> None:
 
     assert response.status_code == 503
     assert "stale-client" not in app.state.rate_limit_hits
+
+
+@pytest.mark.asyncio
+async def test_stats_handles_corrupt_metadata(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    settings.metadata_path.write_text("not parquet")
+    app = create_app(settings)
+    async with _client(app) as client:
+        response = await client.get("/stats")
+
+    assert response.status_code == 200
+    assert response.json()["chunk_count"] == 0
+    assert response.json()["language_breakdown"] == {}
 
 
 @pytest.mark.asyncio

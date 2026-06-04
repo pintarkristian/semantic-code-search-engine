@@ -194,7 +194,10 @@ def create_app(
     async def health() -> HealthResponse:
         """Return liveness plus readiness state."""
         missing = _missing_index_artifacts(app_settings)
-        ready = bool(app.state.index_loaded) and not missing
+        manifest = _read_index_manifest(app_settings)
+        # Artifact existence is not enough for readiness; a corrupted manifest
+        # means the searcher cannot be reliably loaded after a restart.
+        ready = bool(app.state.index_loaded) and not missing and "error" not in manifest
         return HealthResponse(
             status="up",
             ready=ready,
@@ -207,12 +210,13 @@ def create_app(
     async def version() -> VersionResponse:
         """Return app, model, and persisted index manifest versions."""
         missing = _missing_index_artifacts(app_settings)
+        manifest = _read_index_manifest(app_settings)
         return VersionResponse(
             app_version=__version__,
             model_name=app_settings.embedding_model_name,
-            ready=bool(app.state.index_loaded) and not missing,
+            ready=bool(app.state.index_loaded) and not missing and "error" not in manifest,
             index_loaded=bool(app.state.index_loaded),
-            index_manifest=_read_index_manifest(app_settings),
+            index_manifest=manifest,
         )
 
     @app.get("/metrics", include_in_schema=False)
@@ -250,6 +254,9 @@ def create_app(
     @app.get("/index/status/{job_id}", response_model=IndexStatusResponse, tags=["index"])
     async def index_status(job_id: str) -> IndexStatusResponse:
         """Return the current state of a background indexing job."""
+        job_id = job_id.strip()
+        if not job_id:
+            raise HTTPException(status_code=422, detail="job_id must contain non-whitespace text")
         with jobs_lock:
             job = jobs.get(job_id)
             if job is None:
@@ -310,13 +317,16 @@ def create_app(
         chunk_count = 0
         language_breakdown: dict[str, int] = {}
         if app_settings.metadata_path.exists():
-            df = pd.read_parquet(app_settings.metadata_path)
-            chunk_count = int(len(df))
-            if "language" in df.columns:
-                language_breakdown = {
-                    str(lang): int(count)
-                    for lang, count in df["language"].value_counts().sort_index().items()
-                }
+            try:
+                df = pd.read_parquet(app_settings.metadata_path)
+                chunk_count = int(len(df))
+                if "language" in df.columns:
+                    language_breakdown = {
+                        str(lang): int(count)
+                        for lang, count in df["language"].value_counts().sort_index().items()
+                    }
+            except Exception as exc:
+                log.warning("failed to read metadata for stats", error=str(exc))
 
         _update_index_size_metric(app_settings)
         return StatsResponse(
@@ -332,11 +342,7 @@ def create_app(
         """Delete persisted index artifacts and reset the app-scoped searcher."""
         deleted: list[str] = []
         for path in _artifact_paths(app_settings):
-            if path.is_dir():
-                shutil.rmtree(path)
-                deleted.append(str(path))
-            elif path.exists():
-                path.unlink()
+            if _delete_artifact_path(path):
                 deleted.append(str(path))
 
         app.state.searcher = Searcher(app_settings)
@@ -485,7 +491,7 @@ def _run_index_job(app: FastAPI, job_id: str, repo_path: Path, rebuild: bool) ->
     jobs_lock: Lock = app.state.jobs_lock
 
     with jobs_lock:
-        jobs[job_id]["status"] = "running"
+        _set_job_status(jobs[job_id], "running")
         jobs[job_id]["started_at"] = time.time()
 
     try:
@@ -495,9 +501,9 @@ def _run_index_job(app: FastAPI, job_id: str, repo_path: Path, rebuild: bool) ->
         app.state.index_loaded = _load_searcher(app)
         _update_index_size_metric(settings)
         with jobs_lock:
+            _set_job_status(jobs[job_id], "succeeded")
             jobs[job_id].update(
                 {
-                    "status": "succeeded",
                     "finished_at": time.time(),
                     "chunks": int(len(df)),
                     "dimension": int(vectors.shape[1]) if vectors.ndim == 2 and len(df) else 0,
@@ -506,14 +512,21 @@ def _run_index_job(app: FastAPI, job_id: str, repo_path: Path, rebuild: bool) ->
     except Exception as exc:  # pragma: no cover - exercised through integration behavior
         app.state.index_loaded = False
         with jobs_lock:
+            _set_job_status(jobs[job_id], "failed")
             jobs[job_id].update(
                 {
-                    "status": "failed",
                     "finished_at": time.time(),
                     "error": str(exc),
                 }
             )
         log.exception("index job failed", job_id=job_id, error=str(exc))
+
+
+def _set_job_status(job: dict, status: JobStatus) -> None:
+    allowed = {"queued", "running", "succeeded", "failed"}
+    if status not in allowed:
+        raise ValueError(f"Unsupported index job status: {status}")
+    job["status"] = status
 
 
 def _load_searcher(app: FastAPI) -> bool:
@@ -591,10 +604,19 @@ def _artifact_paths(settings: Settings) -> list[Path]:
 
 def _delete_artifacts(settings: Settings) -> None:
     for path in _artifact_paths(settings):
-        if path.is_dir():
-            shutil.rmtree(path)
-        elif path.exists():
-            path.unlink()
+        _delete_artifact_path(path)
+
+
+def _delete_artifact_path(path: Path) -> bool:
+    # Treat symlinks as links, not directories. Index cleanup should never
+    # recurse through a link that happens to point at a directory.
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+        return True
+    if path.is_dir():
+        shutil.rmtree(path)
+        return True
+    return False
 
 
 app = create_app()

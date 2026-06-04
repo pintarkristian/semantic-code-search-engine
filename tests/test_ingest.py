@@ -84,6 +84,22 @@ def test_chunk_ids_are_stable_across_repo_locations(tmp_path: Path) -> None:
     assert ids_a == ids_b
 
 
+def test_chunk_id_rejects_invalid_line_spans(ingestor: CodeIngestor) -> None:
+    with pytest.raises(ValueError, match="line span"):
+        ingestor._make_chunk_id("auth.py", "validate", 0, 10)
+
+    with pytest.raises(ValueError, match="line span"):
+        ingestor._make_chunk_id("auth.py", "validate", 10, 9)
+
+
+def test_chunk_id_rejects_blank_components(ingestor: CodeIngestor) -> None:
+    with pytest.raises(ValueError, match="path and symbol"):
+        ingestor._make_chunk_id("", "validate", 1, 10)
+
+    with pytest.raises(ValueError, match="path and symbol"):
+        ingestor._make_chunk_id("auth.py", "   ", 1, 10)
+
+
 # ---------------------------------------------------------------------------
 # Language detection
 # ---------------------------------------------------------------------------
@@ -91,6 +107,17 @@ def test_chunk_ids_are_stable_across_repo_locations(tmp_path: Path) -> None:
 
 def test_python_language_detected(df: pd.DataFrame) -> None:
     assert "python" in df["language"].values
+
+
+def test_uppercase_source_extension_detected(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "APP.PY").write_text("def app():\n    return True\n")
+
+    df = CodeIngestor(repo, _settings(tmp_path)).ingest()
+
+    assert len(df) == 1
+    assert df.iloc[0]["language"] == "python"
 
 
 def test_javascript_language_detected(df: pd.DataFrame) -> None:
@@ -330,6 +357,28 @@ def test_gitignore_respected(tmp_path: Path) -> None:
     (repo / "public.py").write_text("def public_fn(): pass\n")
     df = CodeIngestor(repo, _settings(tmp_path)).ingest()
     assert not any("secret" in fp for fp in df["file_path"])
+    assert any("public.py" in fp for fp in df["file_path"])
+
+
+def test_unreadable_gitignore_does_not_block_ingest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".gitignore").write_text("ignored.py\n")
+    (repo / "public.py").write_text("def public_fn(): pass\n")
+    original_read_text = Path.read_text
+
+    def fake_read_text(self: Path, *args: object, **kwargs: object) -> str:
+        if self.name == ".gitignore":
+            raise OSError("permission denied")
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", fake_read_text)
+
+    df = CodeIngestor(repo, _settings(tmp_path)).ingest()
+
     assert any("public.py" in fp for fp in df["file_path"])
 
 

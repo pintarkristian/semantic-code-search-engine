@@ -112,8 +112,8 @@ class CodeIngestor:
             try:
                 lines = gi_path.read_text(encoding="utf-8", errors="replace").splitlines()
                 return pathspec.PathSpec.from_lines("gitignore", lines)
-            except OSError:
-                pass
+            except OSError as exc:
+                log.warning("cannot read .gitignore", path=str(gi_path), error=str(exc))
         return None
 
     def _is_gitignored(self, rel: Path) -> bool:
@@ -135,7 +135,7 @@ class CodeIngestor:
                 continue
             if self._is_gitignored(rel):
                 continue
-            if path.suffix in EXT_TO_LANG:
+            if path.suffix.lower() in EXT_TO_LANG:
                 yield path
 
     # ------------------------------------------------------------------
@@ -145,13 +145,19 @@ class CodeIngestor:
     def _make_chunk_id(
         self, rel_path: str, symbol_name: str, start_line: int, end_line: int
     ) -> str:
+        # The hash is a durable external key, so reject malformed inputs instead
+        # of letting empty path/symbol components collide in surprising ways.
+        if not rel_path.strip() or not symbol_name.strip():
+            raise ValueError("chunk ID path and symbol name must be non-empty")
+        if start_line < 1 or end_line < start_line:
+            raise ValueError("chunk line span must be 1-indexed and ordered")
         key = f"{rel_path}:{symbol_name}:{start_line}:{end_line}"
         return hashlib.sha256(key.encode()).hexdigest()[:16]
 
     def _chunk_file(self, file_path: Path) -> list[dict]:
         rel = file_path.relative_to(self.repo_path)
         rel_str = str(rel).replace("\\", "/")
-        language = EXT_TO_LANG[file_path.suffix]
+        language = EXT_TO_LANG[file_path.suffix.lower()]
 
         try:
             source_bytes = file_path.read_bytes()

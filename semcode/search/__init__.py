@@ -325,6 +325,8 @@ def _make_snippet(code: str, max_lines: int) -> str:
     lines = code.splitlines()
     kept: list[str] = []
     for line in lines:
+        if not kept and not line.strip():
+            continue
         if len(kept) >= max_lines:
             break
         kept.append(line)

@@ -132,6 +132,11 @@ class TestMakeSnippet:
         snippet = _make_snippet(code, max_lines=10)
         assert not snippet.endswith("\n")
 
+    def test_strips_leading_blanks(self) -> None:
+        code = "\n\n\ndef f():\n    pass"
+        snippet = _make_snippet(code, max_lines=10)
+        assert snippet.startswith("def f")
+
     def test_empty_code(self) -> None:
         assert _make_snippet("", max_lines=6) == ""
 
@@ -498,6 +503,10 @@ class TestBM25Retriever:
     def test_rejects_non_list_documents(self) -> None:
         with pytest.raises(ValueError, match="token lists"):
             BM25Retriever([["alpha"], "beta"])  # type: ignore[list-item]
+
+    def test_rejects_non_string_tokens(self) -> None:
+        with pytest.raises(ValueError, match="tokens must be strings"):
+            BM25Retriever([["alpha", 123]])  # type: ignore[list-item]
 
     def test_scores_descending(self) -> None:
         corpus = [
