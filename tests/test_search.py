@@ -504,6 +504,10 @@ class TestBM25Retriever:
         with pytest.raises(ValueError, match="token lists"):
             BM25Retriever([["alpha"], "beta"])  # type: ignore[list-item]
 
+    def test_rejects_non_string_tokens(self) -> None:
+        with pytest.raises(ValueError, match="tokens must be strings"):
+            BM25Retriever([["alpha", 123]])  # type: ignore[list-item]
+
     def test_scores_descending(self) -> None:
         corpus = [
             ["foo"],
