@@ -76,10 +76,6 @@ class BM25Retriever:
         self._doc_ids = doc_ids or list(range(len(corpus)))
         if len(self._doc_ids) != len(corpus):
             raise ValueError(f"Expected {len(corpus)} doc_ids, got {len(self._doc_ids)}")
-        # BM25 hits are joined back to metadata through these IDs, so duplicate
-        # IDs would make lexical matches ambiguous during hybrid result fusion.
-        if len(set(self._doc_ids)) != len(self._doc_ids):
-            raise ValueError("BM25 doc_ids must be unique")
         self._bm25: BM25Okapi | None = BM25Okapi(corpus) if corpus else None
 
     @property
