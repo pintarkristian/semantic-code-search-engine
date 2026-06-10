@@ -73,9 +73,17 @@ class BM25Retriever:
             if any(not isinstance(token, str) for token in doc):
                 raise ValueError("BM25 corpus tokens must be strings")
         self._corpus = corpus
-        self._doc_ids = doc_ids or list(range(len(corpus)))
+        raw_doc_ids = doc_ids if doc_ids is not None else list(range(len(corpus)))
+        try:
+            # Normalize once at the boundary. Search result fusion assumes these
+            # IDs can be used as stable integer metadata/vector row references.
+            self._doc_ids = [int(value) for value in raw_doc_ids]
+        except (TypeError, ValueError) as exc:
+            raise ValueError("BM25 doc_ids must be integers") from exc
         if len(self._doc_ids) != len(corpus):
             raise ValueError(f"Expected {len(corpus)} doc_ids, got {len(self._doc_ids)}")
+        if len(set(self._doc_ids)) != len(self._doc_ids):
+            raise ValueError("BM25 doc_ids must be unique")
         self._bm25: BM25Okapi | None = BM25Okapi(corpus) if corpus else None
 
     @property
@@ -188,7 +196,7 @@ class BM25Retriever:
             corpus: list[list[str]] = payload["corpus"]
             if not isinstance(corpus, list):
                 raise ValueError("BM25 corpus payload must contain a list corpus")
-            doc_ids = [int(value) for value in payload.get("doc_ids", range(len(corpus)))]
+            doc_ids = payload.get("doc_ids", range(len(corpus)))
         else:
             corpus = payload
             doc_ids = list(range(len(corpus)))
