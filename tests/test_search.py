@@ -29,15 +29,16 @@ FIXTURE_REPO = Path(__file__).parent / "fixtures" / "sample_repo"
 
 
 def _settings(tmp_path: Path, model_name: str = "test-model", **overrides: object) -> Settings:
-    return Settings(
-        embedding_model_name=model_name,
-        data_dir=tmp_path,
-        faiss_index_path=tmp_path / "index.faiss",
-        metadata_path=tmp_path / "metadata.parquet",
-        batch_size=8,
-        top_k_return=5,
-        **overrides,
-    )
+    params = {
+        "embedding_model_name": model_name,
+        "data_dir": tmp_path,
+        "faiss_index_path": tmp_path / "index.faiss",
+        "metadata_path": tmp_path / "metadata.parquet",
+        "batch_size": 8,
+        "top_k_return": 5,
+    }
+    params.update(overrides)
+    return Settings(**params)
 
 
 def _mock_embedder(settings: Settings) -> Embedder:
@@ -205,6 +206,14 @@ class TestSearcher:
         searcher = Searcher(settings, embedder=embedder)
         assert len(searcher.search("x", k=3)) <= 3
         assert len(searcher.search("x", k=1)) <= 1
+
+    def test_candidates_k_expands_retrieval_pool(self, tmp_path: Path) -> None:
+        settings = _settings(tmp_path, top_k_retrieve=1, top_k_return=1, max_search_k=10)
+        embedder = _mock_embedder(settings)
+        _build_index(tmp_path, n=8)
+        searcher = Searcher(settings, embedder=embedder)
+
+        assert len(searcher.candidates("thing", k=4)) == 4
 
     def test_blank_query_rejected(self, tmp_path: Path) -> None:
         settings, embedder, _ = _build_index(tmp_path)

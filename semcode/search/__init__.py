@@ -207,7 +207,9 @@ class Searcher:
         if self._store is None or self._bm25 is None or self._meta is None:
             raise RuntimeError("Searcher failed to load index artifacts.")
 
-        retrieve_n = self.settings.top_k_retrieve
+        # Candidate callers may ask for more rows than the default retrieval
+        # pool. Fetch enough from each source before fusion to honor that limit.
+        retrieve_n = max(self.settings.top_k_retrieve, k or 0)
 
         query_vec: np.ndarray = self.embedder.encode([query])[0]
         dense_hits = self._store.search(query_vec, retrieve_n)
