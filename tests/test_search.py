@@ -262,6 +262,15 @@ class TestSearcher:
         with pytest.raises(ValueError, match="not present in metadata"):
             searcher.search("function", k=1)
 
+    def test_rejects_duplicate_metadata_chunk_ids(self, tmp_path: Path) -> None:
+        settings, embedder, df = _build_index(tmp_path)
+        df.loc[1, "chunk_id"] = df.loc[0, "chunk_id"]
+        df.to_parquet(settings.metadata_path, index=False)
+        searcher = Searcher(settings, embedder=embedder)
+
+        with pytest.raises(ValueError, match="chunk_id values must be unique"):
+            searcher.search("function", k=1)
+
     def test_search_trims_query_before_rerank(self, tmp_path: Path) -> None:
         settings = _settings(tmp_path)
         searcher = Searcher(settings, embedder=_mock_embedder(settings))
