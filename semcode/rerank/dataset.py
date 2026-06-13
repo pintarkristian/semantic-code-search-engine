@@ -33,6 +33,8 @@ def load_labels(path: Path) -> dict[str, list[str]]:
         labels: dict[str, list[str]] = {}
         for query, chunk_ids in raw.items():
             query_text = _label_query_text(query)
+            if query_text in labels:
+                raise ValueError(f"Duplicate label query: {query_text!r}")
             if isinstance(chunk_ids, str):
                 labels[query_text] = [chunk_ids]
             elif isinstance(chunk_ids, list):
@@ -47,6 +49,8 @@ def load_labels(path: Path) -> dict[str, list[str]]:
             if not isinstance(item, dict) or "query" not in item:
                 raise ValueError("Label list entries must contain a 'query' field.")
             query_text = _label_query_text(item["query"])
+            if query_text in labels:
+                raise ValueError(f"Duplicate label query: {query_text!r}")
             chunk_ids = item.get("relevant_chunk_ids", item.get("relevant", []))
             if isinstance(chunk_ids, str):
                 chunk_ids = [chunk_ids]

@@ -119,6 +119,22 @@ def test_load_labels_rejects_blank_queries(tmp_path: Path) -> None:
         load_labels(labels_path)
 
 
+def test_load_labels_rejects_duplicate_list_queries(tmp_path: Path) -> None:
+    labels_path = tmp_path / "labels.json"
+    labels_path.write_text(
+        json.dumps(
+            [
+                {"query": "validate token", "relevant_chunk_ids": ["chunk-1"]},
+                {"query": " validate token ", "relevant_chunk_ids": ["chunk-2"]},
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Duplicate label query"):
+        load_labels(labels_path)
+
+
 def test_build_dataset_rejects_invalid_sampling_options(tmp_path: Path) -> None:
     labels_path = tmp_path / "labels.json"
     labels_path.write_text(json.dumps({"validate token": ["chunk-1"]}), encoding="utf-8")
