@@ -23,7 +23,12 @@ def load_labels(path: Path) -> dict[str, list[str]]:
       {"query text": ["chunk_id", ...]}
       [{"query": "query text", "relevant_chunk_ids": ["chunk_id", ...]}, ...]
     """
-    raw: Any = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        raw: Any = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        # Labels are user-authored input. Re-raise with the path so CLI/API
+        # callers can point users at the exact file that needs correction.
+        raise ValueError(f"Failed to parse labels JSON at {path}: {exc.msg}") from exc
     if isinstance(raw, dict):
         labels: dict[str, list[str]] = {}
         for query, chunk_ids in raw.items():

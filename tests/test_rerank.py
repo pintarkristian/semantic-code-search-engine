@@ -103,6 +103,14 @@ def test_load_labels_rejects_invalid_list_entry_values(tmp_path: Path) -> None:
         load_labels(labels_path)
 
 
+def test_load_labels_rejects_invalid_json_with_path(tmp_path: Path) -> None:
+    labels_path = tmp_path / "labels.json"
+    labels_path.write_text("{not-json", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Failed to parse labels JSON"):
+        load_labels(labels_path)
+
+
 def test_load_labels_rejects_blank_queries(tmp_path: Path) -> None:
     labels_path = tmp_path / "labels.json"
     labels_path.write_text(json.dumps({"   ": ["chunk-1"]}), encoding="utf-8")
