@@ -201,6 +201,8 @@ class Searcher:
             raise ValueError("query must contain non-whitespace text")
         if k is not None and k <= 0:
             raise ValueError("k must be positive")
+        if k is not None and k > self.settings.max_search_k:
+            raise ValueError(f"k must be less than or equal to {self.settings.max_search_k}")
         self._ensure_loaded()
         if self._store is None or self._bm25 is None or self._meta is None:
             raise RuntimeError("Searcher failed to load index artifacts.")
@@ -273,6 +275,9 @@ class Searcher:
         k = k if k is not None else self.settings.top_k_return
         if k <= 0:
             raise ValueError("k must be positive")
+        # Keep direct Python callers under the same bound as the HTTP surface.
+        if k > self.settings.max_search_k:
+            raise ValueError(f"k must be less than or equal to {self.settings.max_search_k}")
         reranker_enabled = self.settings.use_reranker if use_reranker is None else use_reranker
         candidates = self.candidates(query)
         ranked = self._maybe_rerank(query, candidates, reranker_enabled)

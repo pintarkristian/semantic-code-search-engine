@@ -28,7 +28,7 @@ from tests.conftest import MockSentenceTransformer
 FIXTURE_REPO = Path(__file__).parent / "fixtures" / "sample_repo"
 
 
-def _settings(tmp_path: Path, model_name: str = "test-model") -> Settings:
+def _settings(tmp_path: Path, model_name: str = "test-model", **overrides: object) -> Settings:
     return Settings(
         embedding_model_name=model_name,
         data_dir=tmp_path,
@@ -36,6 +36,7 @@ def _settings(tmp_path: Path, model_name: str = "test-model") -> Settings:
         metadata_path=tmp_path / "metadata.parquet",
         batch_size=8,
         top_k_return=5,
+        **overrides,
     )
 
 
@@ -222,6 +223,18 @@ class TestSearcher:
         searcher = Searcher(settings, embedder=embedder)
         with pytest.raises(ValueError, match="k must be positive"):
             searcher.search("function", k=0)
+
+    def test_candidates_rejects_k_above_max_search_k(self, tmp_path: Path) -> None:
+        settings = _settings(tmp_path, max_search_k=5)
+        searcher = Searcher(settings, embedder=_mock_embedder(settings))
+        with pytest.raises(ValueError, match="less than or equal to 5"):
+            searcher.candidates("function", k=6)
+
+    def test_search_rejects_k_above_max_search_k(self, tmp_path: Path) -> None:
+        settings = _settings(tmp_path, max_search_k=5)
+        searcher = Searcher(settings, embedder=_mock_embedder(settings))
+        with pytest.raises(ValueError, match="less than or equal to 5"):
+            searcher.search("function", k=6)
 
     def test_search_trims_query_before_rerank(self, tmp_path: Path) -> None:
         settings = _settings(tmp_path)
