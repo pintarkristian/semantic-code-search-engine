@@ -172,6 +172,8 @@ class Searcher:
         missing_columns = sorted(required_columns - set(meta.columns))
         if missing_columns:
             raise ValueError(f"Metadata is missing required columns: {missing_columns}")
+        if meta["chunk_id"].astype(str).duplicated().any():
+            raise ValueError("Metadata chunk_id values must be unique.")
 
         bm25_path = bm25_corpus_path(self.settings.faiss_index_path)
         if bm25_path.exists():
@@ -186,11 +188,21 @@ class Searcher:
         if "vector_id" in meta.columns:
             if meta["vector_id"].duplicated().any():
                 raise ValueError("Metadata vector_id values must be unique.")
-            self._doc_id_to_pos = {
-                int(doc_id): int(pos) for pos, doc_id in enumerate(meta["vector_id"].tolist())
-            }
+            try:
+                # BM25 and FAISS results are joined back through vector_id, so
+                # validate metadata IDs before searches start returning rows.
+                self._doc_id_to_pos = {
+                    int(doc_id): int(pos) for pos, doc_id in enumerate(meta["vector_id"].tolist())
+                }
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Metadata vector_id values must be integers.") from exc
         else:
             self._doc_id_to_pos = {int(pos): int(pos) for pos in range(len(meta))}
+        missing_bm25_ids = sorted(set(bm25.doc_ids) - set(self._doc_id_to_pos))
+        if missing_bm25_ids:
+            raise ValueError(
+                f"BM25 corpus contains document IDs not present in metadata: {missing_bm25_ids[:5]}"
+            )
         self._bm25 = bm25
         log.info("searcher ready", chunks=len(meta), ntotal=store.ntotal)
 
@@ -201,11 +213,15 @@ class Searcher:
             raise ValueError("query must contain non-whitespace text")
         if k is not None and k <= 0:
             raise ValueError("k must be positive")
+        if k is not None and k > self.settings.max_search_k:
+            raise ValueError(f"k must be less than or equal to {self.settings.max_search_k}")
         self._ensure_loaded()
         if self._store is None or self._bm25 is None or self._meta is None:
             raise RuntimeError("Searcher failed to load index artifacts.")
 
-        retrieve_n = self.settings.top_k_retrieve
+        # Candidate callers may ask for more rows than the default retrieval
+        # pool. Fetch enough from each source before fusion to honor that limit.
+        retrieve_n = max(self.settings.top_k_retrieve, k or 0)
 
         query_vec: np.ndarray = self.embedder.encode([query])[0]
         dense_hits = self._store.search(query_vec, retrieve_n)
@@ -273,6 +289,9 @@ class Searcher:
         k = k if k is not None else self.settings.top_k_return
         if k <= 0:
             raise ValueError("k must be positive")
+        # Keep direct Python callers under the same bound as the HTTP surface.
+        if k > self.settings.max_search_k:
+            raise ValueError(f"k must be less than or equal to {self.settings.max_search_k}")
         reranker_enabled = self.settings.use_reranker if use_reranker is None else use_reranker
         candidates = self.candidates(query)
         ranked = self._maybe_rerank(query, candidates, reranker_enabled)

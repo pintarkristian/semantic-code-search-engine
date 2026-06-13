@@ -28,15 +28,17 @@ from tests.conftest import MockSentenceTransformer
 FIXTURE_REPO = Path(__file__).parent / "fixtures" / "sample_repo"
 
 
-def _settings(tmp_path: Path, model_name: str = "test-model") -> Settings:
-    return Settings(
-        embedding_model_name=model_name,
-        data_dir=tmp_path,
-        faiss_index_path=tmp_path / "index.faiss",
-        metadata_path=tmp_path / "metadata.parquet",
-        batch_size=8,
-        top_k_return=5,
-    )
+def _settings(tmp_path: Path, model_name: str = "test-model", **overrides: object) -> Settings:
+    params = {
+        "embedding_model_name": model_name,
+        "data_dir": tmp_path,
+        "faiss_index_path": tmp_path / "index.faiss",
+        "metadata_path": tmp_path / "metadata.parquet",
+        "batch_size": 8,
+        "top_k_return": 5,
+    }
+    params.update(overrides)
+    return Settings(**params)
 
 
 def _mock_embedder(settings: Settings) -> Embedder:
@@ -205,6 +207,14 @@ class TestSearcher:
         assert len(searcher.search("x", k=3)) <= 3
         assert len(searcher.search("x", k=1)) <= 1
 
+    def test_candidates_k_expands_retrieval_pool(self, tmp_path: Path) -> None:
+        settings = _settings(tmp_path, top_k_retrieve=1, top_k_return=1, max_search_k=10)
+        embedder = _mock_embedder(settings)
+        _build_index(tmp_path, n=8)
+        searcher = Searcher(settings, embedder=embedder)
+
+        assert len(searcher.candidates("thing", k=4)) == 4
+
     def test_blank_query_rejected(self, tmp_path: Path) -> None:
         settings, embedder, _ = _build_index(tmp_path)
         searcher = Searcher(settings, embedder=embedder)
@@ -222,6 +232,44 @@ class TestSearcher:
         searcher = Searcher(settings, embedder=embedder)
         with pytest.raises(ValueError, match="k must be positive"):
             searcher.search("function", k=0)
+
+    def test_candidates_rejects_k_above_max_search_k(self, tmp_path: Path) -> None:
+        settings = _settings(tmp_path, max_search_k=5)
+        searcher = Searcher(settings, embedder=_mock_embedder(settings))
+        with pytest.raises(ValueError, match="less than or equal to 5"):
+            searcher.candidates("function", k=6)
+
+    def test_search_rejects_k_above_max_search_k(self, tmp_path: Path) -> None:
+        settings = _settings(tmp_path, max_search_k=5)
+        searcher = Searcher(settings, embedder=_mock_embedder(settings))
+        with pytest.raises(ValueError, match="less than or equal to 5"):
+            searcher.search("function", k=6)
+
+    def test_rejects_non_integer_metadata_vector_ids(self, tmp_path: Path) -> None:
+        settings, embedder, df = _build_index(tmp_path)
+        df["vector_id"] = ["bad-id"] + [str(value) for value in range(1, len(df))]
+        df.to_parquet(settings.metadata_path, index=False)
+        searcher = Searcher(settings, embedder=embedder)
+
+        with pytest.raises(ValueError, match="vector_id values must be integers"):
+            searcher.search("function", k=1)
+
+    def test_rejects_bm25_ids_missing_from_metadata(self, tmp_path: Path) -> None:
+        settings, embedder, _ = _build_index(tmp_path)
+        BM25Retriever([["function"]], doc_ids=[999]).save(bm25_corpus_path(settings.faiss_index_path))
+        searcher = Searcher(settings, embedder=embedder)
+
+        with pytest.raises(ValueError, match="not present in metadata"):
+            searcher.search("function", k=1)
+
+    def test_rejects_duplicate_metadata_chunk_ids(self, tmp_path: Path) -> None:
+        settings, embedder, df = _build_index(tmp_path)
+        df.loc[1, "chunk_id"] = df.loc[0, "chunk_id"]
+        df.to_parquet(settings.metadata_path, index=False)
+        searcher = Searcher(settings, embedder=embedder)
+
+        with pytest.raises(ValueError, match="chunk_id values must be unique"):
+            searcher.search("function", k=1)
 
     def test_search_trims_query_before_rerank(self, tmp_path: Path) -> None:
         settings = _settings(tmp_path)
