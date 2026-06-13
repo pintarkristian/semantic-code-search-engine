@@ -102,6 +102,11 @@ def test_add_labels_rejects_string_relevant_ids() -> None:
         add_labels("validate token", _candidate_frame(), "chunk-1")
 
 
+def test_add_labels_rejects_blank_relevant_ids() -> None:
+    with pytest.raises(ValueError, match="non-whitespace"):
+        add_labels("validate token", _candidate_frame(), ["chunk-1", "   "])
+
+
 def test_load_labels_rejects_invalid_object_values(tmp_path: Path) -> None:
     labels_path = tmp_path / "labels.json"
     labels_path.write_text(json.dumps({"query": 123}), encoding="utf-8")

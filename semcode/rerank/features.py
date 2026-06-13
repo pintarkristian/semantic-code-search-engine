@@ -90,7 +90,9 @@ def add_labels(
         raise ValueError("candidates must include a chunk_id column")
     if isinstance(relevant_chunk_ids, str):
         raise TypeError("relevant_chunk_ids must be an iterable of chunk ID strings, not a string")
-    relevant = {str(chunk_id) for chunk_id in relevant_chunk_ids}
+    relevant = {str(chunk_id).strip() for chunk_id in relevant_chunk_ids}
+    if any(not chunk_id for chunk_id in relevant):
+        raise ValueError("relevant_chunk_ids must contain non-whitespace text")
     features = build_features(query, candidates)
     labeled = features.copy()
     labeled.insert(0, "label", candidates["chunk_id"].astype(str).isin(relevant).astype("float32"))
