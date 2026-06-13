@@ -70,13 +70,16 @@ def _label_query_text(value: object) -> str:
 
 def _label_chunk_ids(value: object, *, message: str) -> list[str]:
     if isinstance(value, str):
-        chunk_ids = [value]
+        raw_chunk_ids = [value]
     elif isinstance(value, list):
-        chunk_ids = [str(chunk_id) for chunk_id in value]
+        raw_chunk_ids = value
     else:
         raise ValueError(message)
+    chunk_ids = [str(chunk_id).strip() for chunk_id in raw_chunk_ids]
     if not chunk_ids:
         raise ValueError("Label entries must include at least one relevant chunk ID.")
+    if any(not chunk_id for chunk_id in chunk_ids):
+        raise ValueError("Label chunk IDs must contain non-whitespace text.")
     return chunk_ids
 
 
