@@ -196,6 +196,11 @@ class Searcher:
                 raise ValueError("Metadata vector_id values must be integers.") from exc
         else:
             self._doc_id_to_pos = {int(pos): int(pos) for pos in range(len(meta))}
+        missing_bm25_ids = sorted(set(bm25.doc_ids) - set(self._doc_id_to_pos))
+        if missing_bm25_ids:
+            raise ValueError(
+                f"BM25 corpus contains document IDs not present in metadata: {missing_bm25_ids[:5]}"
+            )
         self._bm25 = bm25
         log.info("searcher ready", chunks=len(meta), ntotal=store.ntotal)
 
