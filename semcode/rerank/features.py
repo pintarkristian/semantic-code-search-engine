@@ -37,6 +37,9 @@ def build_features(query: str, candidates: pd.DataFrame) -> pd.DataFrame:
     metadata columns from ingest. Missing optional columns are treated as empty
     strings or zero scores so the function can also be used in focused tests.
     """
+    query = query.strip()
+    if not query:
+        raise ValueError("query must contain non-whitespace text")
     query_tokens = _tokens(query)
     query_len = max(len(query_tokens), 1)
 
