@@ -226,15 +226,25 @@ class EmbeddingCache:
             )
             return
 
-        if (
-            payload.get("model_name") != self.model_name
-            or int(payload.get("dimension", -1)) != self.dimension
-        ):
+        try:
+            cached_dimension = int(payload.get("dimension", -1))
+        except (TypeError, ValueError) as exc:
+            log.warning(
+                "ignoring embedding cache with invalid dimension metadata",
+                path=str(self.path),
+                cached_dimension=payload.get("dimension"),
+                error=str(exc),
+            )
+            return
+
+        # Cache files are optional acceleration data. Treat incompatible or
+        # malformed metadata as a cache miss so startup can rebuild embeddings.
+        if payload.get("model_name") != self.model_name or cached_dimension != self.dimension:
             log.info(
                 "ignoring embedding cache for different model or dimension",
                 path=str(self.path),
                 cached_model=payload.get("model_name"),
-                cached_dimension=payload.get("dimension"),
+                cached_dimension=cached_dimension,
                 model=self.model_name,
                 dimension=self.dimension,
             )

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable
 
 import pandas as pd
@@ -30,6 +31,13 @@ def _tokens(text: object) -> set[str]:
     return set(tokenize(str(text or "")))
 
 
+def _numeric_feature(row: pd.Series, column: str) -> float:
+    value = float(row.get(column, 0.0) or 0.0)
+    if not math.isfinite(value):
+        raise ValueError(f"{column} must be finite")
+    return value
+
+
 def build_features(query: str, candidates: pd.DataFrame) -> pd.DataFrame:
     """Build a stable numeric feature matrix for ``query`` and candidate chunks.
 
@@ -37,6 +45,9 @@ def build_features(query: str, candidates: pd.DataFrame) -> pd.DataFrame:
     metadata columns from ingest. Missing optional columns are treated as empty
     strings or zero scores so the function can also be used in focused tests.
     """
+    query = query.strip()
+    if not query:
+        raise ValueError("query must contain non-whitespace text")
     query_tokens = _tokens(query)
     query_len = max(len(query_tokens), 1)
 
@@ -52,9 +63,11 @@ def build_features(query: str, candidates: pd.DataFrame) -> pd.DataFrame:
         code_len = max(len(code_tokens), 1)
 
         features: dict[str, float] = {
-            "dense_score": float(row.get("dense_score", 0.0) or 0.0),
-            "bm25_score": float(row.get("bm25_score", 0.0) or 0.0),
-            "fused_score": float(row.get("fused_score", 0.0) or 0.0),
+            # Score features come from retrieval artifacts. Validate them here
+            # before a bad index or test double can poison model training.
+            "dense_score": _numeric_feature(row, "dense_score"),
+            "bm25_score": _numeric_feature(row, "bm25_score"),
+            "fused_score": _numeric_feature(row, "fused_score"),
             "symbol_token_overlap": float(symbol_overlap),
             "query_code_len_ratio": float(query_len / code_len),
             "query_tokens_in_docstring": docstring_hit,
@@ -75,7 +88,11 @@ def add_labels(
     """Return feature rows plus label and lightweight candidate metadata."""
     if "chunk_id" not in candidates.columns:
         raise ValueError("candidates must include a chunk_id column")
-    relevant = {str(chunk_id) for chunk_id in relevant_chunk_ids}
+    if isinstance(relevant_chunk_ids, str):
+        raise TypeError("relevant_chunk_ids must be an iterable of chunk ID strings, not a string")
+    relevant = {str(chunk_id).strip() for chunk_id in relevant_chunk_ids}
+    if any(not chunk_id for chunk_id in relevant):
+        raise ValueError("relevant_chunk_ids must contain non-whitespace text")
     features = build_features(query, candidates)
     labeled = features.copy()
     labeled.insert(0, "label", candidates["chunk_id"].astype(str).isin(relevant).astype("float32"))

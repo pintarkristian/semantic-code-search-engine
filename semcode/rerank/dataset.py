@@ -23,17 +23,22 @@ def load_labels(path: Path) -> dict[str, list[str]]:
       {"query text": ["chunk_id", ...]}
       [{"query": "query text", "relevant_chunk_ids": ["chunk_id", ...]}, ...]
     """
-    raw: Any = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        raw: Any = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        # Labels are user-authored input. Re-raise with the path so CLI/API
+        # callers can point users at the exact file that needs correction.
+        raise ValueError(f"Failed to parse labels JSON at {path}: {exc.msg}") from exc
     if isinstance(raw, dict):
         labels: dict[str, list[str]] = {}
         for query, chunk_ids in raw.items():
             query_text = _label_query_text(query)
-            if isinstance(chunk_ids, str):
-                labels[query_text] = [chunk_ids]
-            elif isinstance(chunk_ids, list):
-                labels[query_text] = [str(chunk_id) for chunk_id in chunk_ids]
-            else:
-                raise ValueError("Label values must be strings or lists of chunk IDs.")
+            if query_text in labels:
+                raise ValueError(f"Duplicate label query: {query_text!r}")
+            labels[query_text] = _label_chunk_ids(
+                chunk_ids,
+                message="Label values must be strings or lists of chunk IDs.",
+            )
         return labels
 
     if isinstance(raw, list):
@@ -42,12 +47,13 @@ def load_labels(path: Path) -> dict[str, list[str]]:
             if not isinstance(item, dict) or "query" not in item:
                 raise ValueError("Label list entries must contain a 'query' field.")
             query_text = _label_query_text(item["query"])
+            if query_text in labels:
+                raise ValueError(f"Duplicate label query: {query_text!r}")
             chunk_ids = item.get("relevant_chunk_ids", item.get("relevant", []))
-            if isinstance(chunk_ids, str):
-                chunk_ids = [chunk_ids]
-            elif not isinstance(chunk_ids, list):
-                raise ValueError("Label entry relevant IDs must be a string or list.")
-            labels[query_text] = [str(chunk_id) for chunk_id in chunk_ids]
+            labels[query_text] = _label_chunk_ids(
+                chunk_ids,
+                message="Label entry relevant IDs must be a string or list.",
+            )
         return labels
 
     raise ValueError("Labels JSON must be an object or list.")
@@ -60,6 +66,23 @@ def _label_query_text(value: object) -> str:
     if not query:
         raise ValueError("Label queries must contain non-whitespace text.")
     return query
+
+
+def _label_chunk_ids(value: object, *, message: str) -> list[str]:
+    if isinstance(value, str):
+        raw_chunk_ids = [value]
+    elif isinstance(value, list):
+        raw_chunk_ids = value
+    else:
+        raise ValueError(message)
+    chunk_ids = [str(chunk_id).strip() for chunk_id in raw_chunk_ids]
+    if not chunk_ids:
+        raise ValueError("Label entries must include at least one relevant chunk ID.")
+    if any(not chunk_id for chunk_id in chunk_ids):
+        raise ValueError("Label chunk IDs must contain non-whitespace text.")
+    if len(set(chunk_ids)) != len(chunk_ids):
+        raise ValueError("Label chunk IDs must be unique per query.")
+    return chunk_ids
 
 
 def build_reranker_dataset(
