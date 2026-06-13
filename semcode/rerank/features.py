@@ -88,6 +88,8 @@ def add_labels(
     """Return feature rows plus label and lightweight candidate metadata."""
     if "chunk_id" not in candidates.columns:
         raise ValueError("candidates must include a chunk_id column")
+    if isinstance(relevant_chunk_ids, str):
+        raise TypeError("relevant_chunk_ids must be an iterable of chunk ID strings, not a string")
     relevant = {str(chunk_id) for chunk_id in relevant_chunk_ids}
     features = build_features(query, candidates)
     labeled = features.copy()
