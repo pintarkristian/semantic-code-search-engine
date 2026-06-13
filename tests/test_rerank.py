@@ -92,6 +92,14 @@ def test_load_labels_rejects_invalid_object_values(tmp_path: Path) -> None:
         load_labels(labels_path)
 
 
+def test_load_labels_rejects_empty_object_relevant_ids(tmp_path: Path) -> None:
+    labels_path = tmp_path / "labels.json"
+    labels_path.write_text(json.dumps({"validate token": []}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="at least one relevant chunk ID"):
+        load_labels(labels_path)
+
+
 def test_load_labels_rejects_invalid_list_entry_values(tmp_path: Path) -> None:
     labels_path = tmp_path / "labels.json"
     labels_path.write_text(
@@ -100,6 +108,17 @@ def test_load_labels_rejects_invalid_list_entry_values(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ValueError, match="string or list"):
+        load_labels(labels_path)
+
+
+def test_load_labels_rejects_empty_list_relevant_ids(tmp_path: Path) -> None:
+    labels_path = tmp_path / "labels.json"
+    labels_path.write_text(
+        json.dumps([{"query": "validate token", "relevant_chunk_ids": []}]),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="at least one relevant chunk ID"):
         load_labels(labels_path)
 
 
