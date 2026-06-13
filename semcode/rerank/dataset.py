@@ -80,6 +80,8 @@ def _label_chunk_ids(value: object, *, message: str) -> list[str]:
         raise ValueError("Label entries must include at least one relevant chunk ID.")
     if any(not chunk_id for chunk_id in chunk_ids):
         raise ValueError("Label chunk IDs must contain non-whitespace text.")
+    if len(set(chunk_ids)) != len(chunk_ids):
+        raise ValueError("Label chunk IDs must be unique per query.")
     return chunk_ids
 
 

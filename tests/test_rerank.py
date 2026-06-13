@@ -141,6 +141,17 @@ def test_load_labels_rejects_blank_list_relevant_id(tmp_path: Path) -> None:
         load_labels(labels_path)
 
 
+def test_load_labels_rejects_duplicate_relevant_ids(tmp_path: Path) -> None:
+    labels_path = tmp_path / "labels.json"
+    labels_path.write_text(
+        json.dumps({"validate token": ["chunk-1", " chunk-1 "]}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="chunk IDs must be unique"):
+        load_labels(labels_path)
+
+
 def test_load_labels_rejects_invalid_json_with_path(tmp_path: Path) -> None:
     labels_path = tmp_path / "labels.json"
     labels_path.write_text("{not-json", encoding="utf-8")
