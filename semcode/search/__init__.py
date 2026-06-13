@@ -186,9 +186,14 @@ class Searcher:
         if "vector_id" in meta.columns:
             if meta["vector_id"].duplicated().any():
                 raise ValueError("Metadata vector_id values must be unique.")
-            self._doc_id_to_pos = {
-                int(doc_id): int(pos) for pos, doc_id in enumerate(meta["vector_id"].tolist())
-            }
+            try:
+                # BM25 and FAISS results are joined back through vector_id, so
+                # validate metadata IDs before searches start returning rows.
+                self._doc_id_to_pos = {
+                    int(doc_id): int(pos) for pos, doc_id in enumerate(meta["vector_id"].tolist())
+                }
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Metadata vector_id values must be integers.") from exc
         else:
             self._doc_id_to_pos = {int(pos): int(pos) for pos in range(len(meta))}
         self._bm25 = bm25

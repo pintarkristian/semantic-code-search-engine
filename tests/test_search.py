@@ -245,6 +245,15 @@ class TestSearcher:
         with pytest.raises(ValueError, match="less than or equal to 5"):
             searcher.search("function", k=6)
 
+    def test_rejects_non_integer_metadata_vector_ids(self, tmp_path: Path) -> None:
+        settings, embedder, df = _build_index(tmp_path)
+        df["vector_id"] = ["bad-id"] + [str(value) for value in range(1, len(df))]
+        df.to_parquet(settings.metadata_path, index=False)
+        searcher = Searcher(settings, embedder=embedder)
+
+        with pytest.raises(ValueError, match="vector_id values must be integers"):
+            searcher.search("function", k=1)
+
     def test_search_trims_query_before_rerank(self, tmp_path: Path) -> None:
         settings = _settings(tmp_path)
         searcher = Searcher(settings, embedder=_mock_embedder(settings))
