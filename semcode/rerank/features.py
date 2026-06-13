@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable
 
 import pandas as pd
@@ -30,6 +31,13 @@ def _tokens(text: object) -> set[str]:
     return set(tokenize(str(text or "")))
 
 
+def _numeric_feature(row: pd.Series, column: str) -> float:
+    value = float(row.get(column, 0.0) or 0.0)
+    if not math.isfinite(value):
+        raise ValueError(f"{column} must be finite")
+    return value
+
+
 def build_features(query: str, candidates: pd.DataFrame) -> pd.DataFrame:
     """Build a stable numeric feature matrix for ``query`` and candidate chunks.
 
@@ -55,9 +63,11 @@ def build_features(query: str, candidates: pd.DataFrame) -> pd.DataFrame:
         code_len = max(len(code_tokens), 1)
 
         features: dict[str, float] = {
-            "dense_score": float(row.get("dense_score", 0.0) or 0.0),
-            "bm25_score": float(row.get("bm25_score", 0.0) or 0.0),
-            "fused_score": float(row.get("fused_score", 0.0) or 0.0),
+            # Score features come from retrieval artifacts. Validate them here
+            # before a bad index or test double can poison model training.
+            "dense_score": _numeric_feature(row, "dense_score"),
+            "bm25_score": _numeric_feature(row, "bm25_score"),
+            "fused_score": _numeric_feature(row, "fused_score"),
             "symbol_token_overlap": float(symbol_overlap),
             "query_code_len_ratio": float(query_len / code_len),
             "query_tokens_in_docstring": docstring_hit,

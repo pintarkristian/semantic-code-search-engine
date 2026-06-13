@@ -82,6 +82,14 @@ def test_feature_builder_rejects_blank_query() -> None:
         build_features("   ", _candidate_frame())
 
 
+def test_feature_builder_rejects_non_finite_scores() -> None:
+    candidates = _candidate_frame()
+    candidates.loc[0, "dense_score"] = np.nan
+
+    with pytest.raises(ValueError, match="dense_score must be finite"):
+        build_features("validate token", candidates)
+
+
 def test_add_labels_requires_chunk_id() -> None:
     candidates = _candidate_frame().drop(columns=["chunk_id"])
 
