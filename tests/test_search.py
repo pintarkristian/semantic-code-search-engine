@@ -293,6 +293,16 @@ class TestSearcher:
         with pytest.raises(ValueError, match="line spans"):
             searcher.search("function", k=1)
 
+    def test_rejects_non_integer_metadata_line_spans(self, tmp_path: Path) -> None:
+        settings, embedder, df = _build_index(tmp_path)
+        df["start_line"] = ["not-int"] + [str(value) for value in df["start_line"].iloc[1:]]
+        df["end_line"] = [str(value) for value in df["end_line"]]
+        df.to_parquet(settings.metadata_path, index=False)
+        searcher = Searcher(settings, embedder=embedder)
+
+        with pytest.raises(ValueError, match="line spans must be integers"):
+            searcher.search("function", k=1)
+
     def test_search_trims_query_before_rerank(self, tmp_path: Path) -> None:
         settings = _settings(tmp_path)
         searcher = Searcher(settings, embedder=_mock_embedder(settings))
