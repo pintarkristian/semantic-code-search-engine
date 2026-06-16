@@ -254,6 +254,16 @@ def test_train_model_rejects_non_finite_labels(tmp_path: Path) -> None:
         train_reranker_model(dataset_path, _settings(tmp_path), epochs=1, batch_size=1)
 
 
+def test_train_model_rejects_non_binary_labels(tmp_path: Path) -> None:
+    dataset = pd.DataFrame([{column: 0.0 for column in FEATURE_COLUMNS}])
+    dataset["label"] = [0.5]
+    dataset_path = tmp_path / "non-binary.parquet"
+    dataset.to_parquet(dataset_path, index=False)
+
+    with pytest.raises(ValueError, match="binary"):
+        train_reranker_model(dataset_path, _settings(tmp_path), epochs=1, batch_size=1)
+
+
 def test_build_model_rejects_invalid_input_dim() -> None:
     with pytest.raises(ValueError, match="input_dim"):
         build_model(0)
