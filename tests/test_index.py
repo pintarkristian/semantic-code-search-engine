@@ -488,6 +488,18 @@ def test_update_rejects_duplicate_add_ids(tmp_path: Path) -> None:
         )
 
 
+def test_update_rejects_non_integer_add_ids(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs, ids=np.arange(3, dtype=np.int64))
+    with pytest.raises(ValueError, match="add ids must be integers"):
+        store.update(
+            remove_ids=np.asarray([], dtype=np.int64),
+            add_vectors=_unit_vectors(1, seed=1),
+            add_ids=np.asarray([3.5], dtype=np.float32),
+        )
+
+
 def test_update_rejects_duplicate_remove_ids(tmp_path: Path) -> None:
     vecs = _unit_vectors(3)
     store = VectorStore(_settings(tmp_path))

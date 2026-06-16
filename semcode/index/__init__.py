@@ -173,7 +173,10 @@ class VectorStore:
             raise ValueError("FAISS remove ids must be integers")
         remove_ids = np.ascontiguousarray(raw_remove_ids, dtype=np.int64)
         add_vectors = np.ascontiguousarray(add_vectors, dtype=np.float32)
-        add_ids = np.ascontiguousarray(add_ids, dtype=np.int64)
+        raw_add_ids = np.asarray(add_ids)
+        if not np.issubdtype(raw_add_ids.dtype, np.integer):
+            raise ValueError("FAISS add ids must be integers")
+        add_ids = np.ascontiguousarray(raw_add_ids, dtype=np.int64)
 
         if add_vectors.ndim != 2:
             raise ValueError(f"Expected 2-D add_vectors, got shape {add_vectors.shape}")
