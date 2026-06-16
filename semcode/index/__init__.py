@@ -98,7 +98,11 @@ class VectorStore:
         # dimension zero would make later load-time validation meaningless.
         if dim <= 0:
             raise ValueError("FAISS vector dimension must be positive")
-        ids = None if ids is None else np.ascontiguousarray(ids, dtype=np.int64)
+        if ids is not None:
+            raw_ids = np.asarray(ids)
+            if not np.issubdtype(raw_ids.dtype, np.integer):
+                raise ValueError("FAISS ids must be integers")
+            ids = np.ascontiguousarray(raw_ids, dtype=np.int64)
         if ids is not None and len(ids) != n:
             raise ValueError(f"Expected {n} ids, got {len(ids)}")
         if ids is not None and len(np.unique(ids)) != len(ids):

@@ -153,6 +153,13 @@ def test_build_rejects_duplicate_faiss_ids(tmp_path: Path) -> None:
         store.build(vecs, ids=np.asarray([1, 1, 2], dtype=np.int64))
 
 
+def test_build_rejects_non_integer_faiss_ids(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    with pytest.raises(ValueError, match="ids must be integers"):
+        store.build(vecs, ids=np.asarray([1.0, 2.0, 3.0], dtype=np.float32))
+
+
 # ---------------------------------------------------------------------------
 # VectorStore — search
 # ---------------------------------------------------------------------------
