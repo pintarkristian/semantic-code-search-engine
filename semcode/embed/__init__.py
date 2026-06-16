@@ -79,6 +79,8 @@ def chunk_to_text(row: Any, max_chars: int = 2048) -> str:
 
 def content_hash_for_text(text: str) -> str:
     """Return a stable SHA-256 content hash for an embedding input string."""
+    if not isinstance(text, str):
+        raise TypeError("content_hash_for_text expects a string")
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
