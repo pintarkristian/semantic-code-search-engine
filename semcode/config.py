@@ -59,9 +59,11 @@ class Settings(BaseSettings):
             return False
         return value
 
-    @field_validator("host")
+    @field_validator("host", mode="before")
     @classmethod
-    def _validate_host(cls, value: str) -> str:
+    def _validate_host(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("host must be a string")
         if not value.strip():
             raise ValueError("host must contain non-whitespace text")
         return value.strip()

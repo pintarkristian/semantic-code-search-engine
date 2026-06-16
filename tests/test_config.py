@@ -87,6 +87,11 @@ def test_host_must_not_be_blank() -> None:
         Settings(host="   ")
 
 
+def test_host_must_be_string() -> None:
+    with pytest.raises(ValidationError, match="host must be a string"):
+        Settings(host=123)
+
+
 def test_invalid_log_level_rejected() -> None:
     with pytest.raises(ValidationError, match="log_level"):
         Settings(log_level="verbose")
