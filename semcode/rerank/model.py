@@ -95,6 +95,8 @@ def train_reranker_model(
     if batch_size <= 0:
         raise ValueError("batch_size must be positive")
     settings = settings or get_settings()
+    if not dataset_path.exists():
+        raise FileNotFoundError(f"No reranker dataset at {dataset_path}")
     df = pd.read_parquet(dataset_path)
     x_train, y_train, x_val, y_val = _split_xy(df)
     if not np.any(y_train == 1.0) or not np.any(y_train == 0.0):

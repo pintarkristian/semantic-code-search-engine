@@ -233,6 +233,13 @@ def test_train_model_rejects_invalid_training_options(tmp_path: Path) -> None:
         train_reranker_model(dataset_path, batch_size=0)
 
 
+def test_train_model_rejects_missing_dataset_path(tmp_path: Path) -> None:
+    dataset_path = tmp_path / "missing.parquet"
+
+    with pytest.raises(FileNotFoundError, match="No reranker dataset"):
+        train_reranker_model(dataset_path, _settings(tmp_path), epochs=1, batch_size=1)
+
+
 def test_train_model_rejects_non_finite_features(tmp_path: Path) -> None:
     dataset = pd.DataFrame([{column: 0.0 for column in FEATURE_COLUMNS}])
     dataset["label"] = [1.0]
