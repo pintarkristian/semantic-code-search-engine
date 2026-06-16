@@ -186,8 +186,11 @@ class BM25Retriever:
     @classmethod
     def load(cls, path: Path) -> BM25Retriever:
         """Load a previously saved tokenized corpus and reconstruct BM25Okapi."""
-        with open(path, "rb") as f:
-            payload = pickle.load(f)
+        try:
+            with open(path, "rb") as f:
+                payload = pickle.load(f)
+        except (OSError, pickle.PickleError, EOFError, AttributeError, ValueError) as exc:
+            raise ValueError(f"Failed to load BM25 corpus at {path}: {exc}") from exc
         if isinstance(payload, dict):
             # Current payloads store explicit FAISS IDs; older payloads were
             # plain corpus lists and are handled by the compatibility branch.

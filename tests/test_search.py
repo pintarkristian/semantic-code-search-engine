@@ -542,6 +542,13 @@ class TestBM25Retriever:
         with pytest.raises(ValueError, match="missing 'corpus'"):
             BM25Retriever.load(path)
 
+    def test_load_rejects_corrupt_pickle_with_path(self, tmp_path: Path) -> None:
+        path = tmp_path / "corpus.pkl"
+        path.write_bytes(b"not-a-pickle")
+
+        with pytest.raises(ValueError, match="Failed to load BM25 corpus"):
+            BM25Retriever.load(path)
+
     def test_empty_corpus(self) -> None:
         bm25 = BM25Retriever([])
         assert bm25.search("anything", k=5) == []
