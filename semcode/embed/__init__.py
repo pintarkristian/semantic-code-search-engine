@@ -293,7 +293,8 @@ class EmbeddingCache:
             self.path.unlink()
 
     def get(self, content_hash: str) -> np.ndarray | None:
-        return self._vectors.get(content_hash)
+        vector = self._vectors.get(content_hash)
+        return None if vector is None else vector.copy()
 
     def set(self, content_hash: str, vector: np.ndarray) -> None:
         arr = np.asarray(vector, dtype=np.float32)

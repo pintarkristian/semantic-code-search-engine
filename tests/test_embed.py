@@ -495,6 +495,15 @@ def test_embedding_cache_copies_vectors_on_set(settings: Settings) -> None:
     assert cache.get("stable")[0] == 0.0
 
 
+def test_embedding_cache_returns_vector_copies(settings: Settings) -> None:
+    cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
+    cache.set("stable", np.zeros(_MOCK_DIM, dtype=np.float32))
+    cached = cache.get("stable")
+    cached[0] = 1.0
+
+    assert cache.get("stable")[0] == 0.0
+
+
 def test_cached_embedding_counts_duplicate_content_as_hits(settings: Settings) -> None:
     df = pd.DataFrame(
         [
