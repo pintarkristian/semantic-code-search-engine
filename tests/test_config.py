@@ -97,6 +97,11 @@ def test_invalid_log_level_rejected() -> None:
         Settings(log_level="verbose")
 
 
+def test_log_level_must_be_string() -> None:
+    with pytest.raises(ValidationError, match="log_level must be a string"):
+        Settings(log_level=123)
+
+
 def test_log_level_is_trimmed_and_normalized() -> None:
     assert Settings(log_level=" info ").log_level == "INFO"
 

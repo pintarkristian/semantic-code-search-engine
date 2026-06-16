@@ -68,9 +68,11 @@ class Settings(BaseSettings):
             raise ValueError("host must contain non-whitespace text")
         return value.strip()
 
-    @field_validator("log_level")
+    @field_validator("log_level", mode="before")
     @classmethod
-    def _validate_log_level(cls, value: str) -> str:
+    def _validate_log_level(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("log_level must be a string")
         normalized = value.strip().upper()
         allowed = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
         if normalized not in allowed:
