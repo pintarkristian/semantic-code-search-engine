@@ -168,7 +168,10 @@ class VectorStore:
         if self._manifest.get("id_mapped") is not True:
             raise RuntimeError("Incremental update requires an ID-mapped FAISS index.")
 
-        remove_ids = np.ascontiguousarray(remove_ids, dtype=np.int64)
+        raw_remove_ids = np.asarray(remove_ids)
+        if not np.issubdtype(raw_remove_ids.dtype, np.integer):
+            raise ValueError("FAISS remove ids must be integers")
+        remove_ids = np.ascontiguousarray(raw_remove_ids, dtype=np.int64)
         add_vectors = np.ascontiguousarray(add_vectors, dtype=np.float32)
         add_ids = np.ascontiguousarray(add_ids, dtype=np.int64)
 
