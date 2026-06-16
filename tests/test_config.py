@@ -92,6 +92,15 @@ def test_host_must_be_string() -> None:
         Settings(host=123)
 
 
+def test_app_name_must_not_be_blank() -> None:
+    with pytest.raises(ValidationError, match="app_name"):
+        Settings(app_name="   ")
+
+
+def test_app_name_is_trimmed() -> None:
+    assert Settings(app_name=" semcode-api ").app_name == "semcode-api"
+
+
 def test_invalid_log_level_rejected() -> None:
     with pytest.raises(ValidationError, match="log_level"):
         Settings(log_level="verbose")
