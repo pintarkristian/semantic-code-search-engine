@@ -291,6 +291,18 @@ def test_reranker_unavailable_without_feature_schema(tmp_path: Path) -> None:
     assert ReRanker(_settings(tmp_path), model_path=model_path).available is False
 
 
+def test_reranker_falls_back_on_feature_schema_mismatch(tmp_path: Path) -> None:
+    model_path = tmp_path / "reranker"
+    model_path.mkdir()
+    (model_path / "saved_model.pb").write_bytes(b"placeholder")
+    (model_path / "feature_columns.json").write_text(json.dumps(["wrong"]), encoding="utf-8")
+    reranker = ReRanker(_settings(tmp_path), model_path=model_path)
+
+    scores = reranker.score("validate token", _candidate_frame())
+
+    np.testing.assert_allclose(scores, _candidate_frame()["fused_score"].to_numpy("float32"))
+
+
 def test_reranker_score_falls_back_on_wrong_score_count(tmp_path: Path) -> None:
     class _BadSignature:
         def __call__(self, features: Any) -> dict[str, np.ndarray]:

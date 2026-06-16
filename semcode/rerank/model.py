@@ -179,6 +179,10 @@ class ReRanker:
         if not self.available:
             return False
         if self._model is None:
+            schema_path = self.model_path / "feature_columns.json"
+            saved_columns = json.loads(schema_path.read_text(encoding="utf-8"))
+            if saved_columns != FEATURE_COLUMNS:
+                raise ValueError("Reranker feature schema does not match current feature columns.")
             tf = _import_tf()
             self._model = tf.saved_model.load(str(self.model_path))
             self._signature = self._model.signatures["serving_default"]
@@ -193,10 +197,12 @@ class ReRanker:
         fallback = candidates.get("fused_score", pd.Series([0.0] * len(candidates))).to_numpy(
             dtype="float32"
         )
-        if candidates.empty or not self._ensure_loaded():
+        if candidates.empty:
             return fallback
 
         try:
+            if not self._ensure_loaded():
+                return fallback
             tf = _import_tf()
             features = build_features(query, candidates).to_numpy(dtype="float32")
             if self._signature is None:
