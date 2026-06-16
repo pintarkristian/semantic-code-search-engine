@@ -79,9 +79,11 @@ class Settings(BaseSettings):
             raise ValueError(f"log_level must be one of: {', '.join(sorted(allowed))}")
         return normalized
 
-    @field_validator("log_format")
+    @field_validator("log_format", mode="before")
     @classmethod
-    def _validate_log_format(cls, value: str) -> str:
+    def _validate_log_format(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("log_format must be a string")
         normalized = value.strip().lower()
         if normalized not in {"pretty", "json"}:
             raise ValueError("log_format must be 'pretty' or 'json'")

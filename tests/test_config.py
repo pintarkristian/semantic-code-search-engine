@@ -111,6 +111,11 @@ def test_invalid_log_format_rejected() -> None:
         Settings(log_format="plain")
 
 
+def test_log_format_must_be_string() -> None:
+    with pytest.raises(ValidationError, match="log_format must be a string"):
+        Settings(log_format=123)
+
+
 def test_log_format_is_trimmed_and_normalized() -> None:
     assert Settings(log_format=" JSON ").log_format == "json"
 
