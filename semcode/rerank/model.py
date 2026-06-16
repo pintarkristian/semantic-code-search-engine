@@ -168,7 +168,11 @@ class ReRanker:
     @property
     def available(self) -> bool:
         if self._available is None:
-            self._available = (self.model_path / "saved_model.pb").exists()
+            # The SavedModel and feature schema are a pair; loading only the
+            # model can silently score the wrong feature order after upgrades.
+            self._available = (self.model_path / "saved_model.pb").exists() and (
+                self.model_path / "feature_columns.json"
+            ).exists()
         return self._available
 
     def _ensure_loaded(self) -> bool:

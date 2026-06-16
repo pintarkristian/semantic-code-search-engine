@@ -283,6 +283,14 @@ def test_reranker_score_rejects_blank_query(tmp_path: Path) -> None:
         reranker.score("   ", _candidate_frame())
 
 
+def test_reranker_unavailable_without_feature_schema(tmp_path: Path) -> None:
+    model_path = tmp_path / "reranker"
+    model_path.mkdir()
+    (model_path / "saved_model.pb").write_bytes(b"placeholder")
+
+    assert ReRanker(_settings(tmp_path), model_path=model_path).available is False
+
+
 def test_reranker_score_falls_back_on_wrong_score_count(tmp_path: Path) -> None:
     class _BadSignature:
         def __call__(self, features: Any) -> dict[str, np.ndarray]:
@@ -338,3 +346,7 @@ def _export_inverse_fused_model(model_path: Path) -> None:
     weights[FEATURE_COLUMNS.index("fused_score"), 0] = -200.0
     model.layers[-1].set_weights([weights, np.array([0.0], dtype="float32")])
     model.export(str(model_path))
+    (model_path / "feature_columns.json").write_text(
+        json.dumps(FEATURE_COLUMNS, indent=2),
+        encoding="utf-8",
+    )
