@@ -171,6 +171,8 @@ class VectorStore:
             raise RuntimeError("Incremental update requires an ID-mapped FAISS index.")
 
         raw_remove_ids = np.asarray(remove_ids)
+        if raw_remove_ids.ndim != 1:
+            raise ValueError(f"Expected 1-D FAISS remove ids, got shape {raw_remove_ids.shape}")
         if not np.issubdtype(raw_remove_ids.dtype, np.integer):
             raise ValueError("FAISS remove ids must be integers")
         remove_ids = np.ascontiguousarray(raw_remove_ids, dtype=np.int64)
