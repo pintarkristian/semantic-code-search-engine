@@ -144,7 +144,10 @@ class Embedder:
     @property
     def dimension(self) -> int:
         """Embedding dimension of the loaded model."""
-        dimension = int(self._load_model().get_sentence_embedding_dimension())
+        try:
+            dimension = int(self._load_model().get_sentence_embedding_dimension())
+        except (TypeError, ValueError) as exc:
+            raise ValueError("embedding model dimension must be an integer") from exc
         if dimension <= 0:
             raise ValueError("embedding model dimension must be positive")
         return dimension

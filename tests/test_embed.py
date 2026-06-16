@@ -64,6 +64,11 @@ class _BadDimensionModel(_MockModel):
         return 0
 
 
+class _NonIntegerDimensionModel(_MockModel):
+    def get_sentence_embedding_dimension(self) -> str:
+        return "bad"
+
+
 class _BadShapeModel(_MockModel):
     def encode(self, *args: Any, **kwargs: Any) -> np.ndarray:
         return np.zeros(_MOCK_DIM, dtype=np.float32)
@@ -274,6 +279,13 @@ def test_dimension_property_rejects_invalid_model_dimension(settings: Settings) 
     emb = Embedder(settings, _model=_BadDimensionModel())
 
     with pytest.raises(ValueError, match="dimension"):
+        _ = emb.dimension
+
+
+def test_dimension_property_rejects_non_integer_model_dimension(settings: Settings) -> None:
+    emb = Embedder(settings, _model=_NonIntegerDimensionModel())
+
+    with pytest.raises(ValueError, match="dimension must be an integer"):
         _ = emb.dimension
 
 
