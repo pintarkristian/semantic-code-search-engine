@@ -203,7 +203,10 @@ class EmbeddingCache:
     def __init__(self, settings: Settings, *, model_name: str, dimension: int) -> None:
         self.settings = settings
         self.model_name = model_name
-        self.dimension = int(dimension)
+        try:
+            self.dimension = int(dimension)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("dimension must be an integer") from exc
         if self.dimension <= 0:
             raise ValueError("dimension must be positive")
         self.path = embedding_cache_path(settings)

@@ -418,6 +418,11 @@ def test_embedding_cache_rejects_invalid_dimension(settings: Settings) -> None:
         EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=0)
 
 
+def test_embedding_cache_rejects_non_integer_dimension(settings: Settings) -> None:
+    with pytest.raises(ValueError, match="dimension must be an integer"):
+        EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension="bad")  # type: ignore[arg-type]
+
+
 def test_embedding_cache_ignores_invalid_dimension_metadata(settings: Settings) -> None:
     cache_path = settings.data_dir / "embedding_cache.pkl"
     cache_path.parent.mkdir(parents=True, exist_ok=True)
