@@ -233,6 +233,17 @@ def test_train_model_rejects_invalid_training_options(tmp_path: Path) -> None:
         train_reranker_model(dataset_path, batch_size=0)
 
 
+def test_train_model_rejects_non_finite_features(tmp_path: Path) -> None:
+    dataset = pd.DataFrame([{column: 0.0 for column in FEATURE_COLUMNS}])
+    dataset["label"] = [1.0]
+    dataset.loc[0, FEATURE_COLUMNS[0]] = np.nan
+    dataset_path = tmp_path / "bad.parquet"
+    dataset.to_parquet(dataset_path, index=False)
+
+    with pytest.raises(ValueError, match="feature columns"):
+        train_reranker_model(dataset_path, _settings(tmp_path), epochs=1, batch_size=1)
+
+
 def test_build_model_rejects_invalid_input_dim() -> None:
     with pytest.raises(ValueError, match="input_dim"):
         build_model(0)

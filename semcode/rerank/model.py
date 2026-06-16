@@ -32,6 +32,10 @@ def _split_xy(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.
 
     x = df[FEATURE_COLUMNS].astype("float32").to_numpy()
     y = df["label"].astype("float32").to_numpy()
+    # Training failures inside TensorFlow are harder to diagnose than a small
+    # boundary check here, so validate exported feature matrices up front.
+    if not np.isfinite(x).all():
+        raise ValueError("Reranker feature columns must contain only finite values.")
 
     rng = np.random.default_rng(42)
     pos_idx = rng.permutation(np.flatnonzero(y == 1.0))
