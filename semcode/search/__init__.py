@@ -178,6 +178,10 @@ class Searcher:
             raise ValueError(f"Metadata is missing required columns: {missing_columns}")
         if meta["chunk_id"].astype(str).duplicated().any():
             raise ValueError("Metadata chunk_id values must be unique.")
+        if (meta["start_line"].astype(int) < 1).any() or (
+            meta["end_line"].astype(int) < meta["start_line"].astype(int)
+        ).any():
+            raise ValueError("Metadata line spans must be 1-indexed and ordered.")
 
         bm25_path = bm25_corpus_path(self.settings.faiss_index_path)
         if bm25_path.exists():
