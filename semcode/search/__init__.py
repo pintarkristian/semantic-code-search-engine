@@ -178,6 +178,9 @@ class Searcher:
             raise ValueError(f"Metadata is missing required columns: {missing_columns}")
         if meta["chunk_id"].astype(str).duplicated().any():
             raise ValueError("Metadata chunk_id values must be unique.")
+        for column in ("file_path", "symbol_name", "symbol_type", "language"):
+            if meta[column].astype(str).str.strip().eq("").any():
+                raise ValueError(f"Metadata {column} values must contain non-whitespace text.")
         try:
             start_lines = meta["start_line"].astype(int)
             end_lines = meta["end_line"].astype(int)
