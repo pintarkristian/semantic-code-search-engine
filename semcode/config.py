@@ -89,9 +89,11 @@ class Settings(BaseSettings):
             raise ValueError("log_format must be 'pretty' or 'json'")
         return normalized
 
-    @field_validator("embedding_device")
+    @field_validator("embedding_device", mode="before")
     @classmethod
-    def _validate_embedding_device(cls, value: str) -> str:
+    def _validate_embedding_device(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("embedding_device must be a string")
         normalized = value.strip().lower()
         if normalized not in {"cpu", "cuda"}:
             raise ValueError("embedding_device must be 'cpu' or 'cuda'")

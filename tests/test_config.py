@@ -125,6 +125,11 @@ def test_invalid_embedding_device_rejected() -> None:
         Settings(embedding_device="tpu")
 
 
+def test_embedding_device_must_be_string() -> None:
+    with pytest.raises(ValidationError, match="embedding_device must be a string"):
+        Settings(embedding_device=123)
+
+
 def test_embedding_device_is_trimmed_and_normalized() -> None:
     assert Settings(embedding_device=" CUDA ").embedding_device == "cuda"
 
