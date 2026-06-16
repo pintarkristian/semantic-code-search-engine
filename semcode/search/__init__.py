@@ -89,6 +89,8 @@ def _reciprocal_rank_fusion(
     """
     if k <= 0:
         raise ValueError("RRF k must be positive")
+    if dense_weight < 0 or bm25_weight < 0:
+        raise ValueError("RRF weights must be non-negative")
 
     dense_map: dict[int, tuple[int, float]] = {
         row_idx: (rank + 1, score) for rank, (row_idx, score) in enumerate(dense_hits)
