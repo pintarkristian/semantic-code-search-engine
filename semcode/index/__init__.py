@@ -178,6 +178,8 @@ class VectorStore:
         remove_ids = np.ascontiguousarray(raw_remove_ids, dtype=np.int64)
         add_vectors = np.ascontiguousarray(add_vectors, dtype=np.float32)
         raw_add_ids = np.asarray(add_ids)
+        if raw_add_ids.ndim != 1:
+            raise ValueError(f"Expected 1-D FAISS add ids, got shape {raw_add_ids.shape}")
         if not np.issubdtype(raw_add_ids.dtype, np.integer):
             raise ValueError("FAISS add ids must be integers")
         add_ids = np.ascontiguousarray(raw_add_ids, dtype=np.int64)
