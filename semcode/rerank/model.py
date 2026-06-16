@@ -36,6 +36,8 @@ def _split_xy(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.
     # boundary check here, so validate exported feature matrices up front.
     if not np.isfinite(x).all():
         raise ValueError("Reranker feature columns must contain only finite values.")
+    if not np.isfinite(y).all():
+        raise ValueError("Reranker labels must contain only finite values.")
 
     rng = np.random.default_rng(42)
     pos_idx = rng.permutation(np.flatnonzero(y == 1.0))
