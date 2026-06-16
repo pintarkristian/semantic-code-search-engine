@@ -211,6 +211,10 @@ class Searcher:
         query = query.strip()
         if not query:
             raise ValueError("query must contain non-whitespace text")
+        if len(query) > self.settings.max_query_length:
+            raise ValueError(
+                f"query must be at most {self.settings.max_query_length} characters"
+            )
         if k is not None and k <= 0:
             raise ValueError("k must be positive")
         if k is not None and k > self.settings.max_search_k:
@@ -286,6 +290,12 @@ class Searcher:
         query = query.strip()
         if not query:
             raise ValueError("query must contain non-whitespace text")
+        # Match API validation for direct Python callers and avoid embedding
+        # unexpectedly large request bodies.
+        if len(query) > self.settings.max_query_length:
+            raise ValueError(
+                f"query must be at most {self.settings.max_query_length} characters"
+            )
         k = k if k is not None else self.settings.top_k_return
         if k <= 0:
             raise ValueError("k must be positive")
