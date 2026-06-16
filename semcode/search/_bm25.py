@@ -74,6 +74,8 @@ class BM25Retriever:
                 raise ValueError("BM25 corpus tokens must be strings")
         self._corpus = corpus
         raw_doc_ids = doc_ids if doc_ids is not None else list(range(len(corpus)))
+        if isinstance(raw_doc_ids, str):
+            raise ValueError("BM25 doc_ids must be a list of integers")
         try:
             # Normalize once at the boundary. Search result fusion assumes these
             # IDs can be used as stable integer metadata/vector row references.

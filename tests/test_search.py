@@ -575,6 +575,10 @@ class TestBM25Retriever:
         with pytest.raises(ValueError, match="doc_ids must be integers"):
             BM25Retriever([["alpha"]], doc_ids=["not-an-id"])  # type: ignore[list-item]
 
+    def test_rejects_string_doc_ids(self) -> None:
+        with pytest.raises(ValueError, match="list of integers"):
+            BM25Retriever([["alpha"], ["beta"]], doc_ids="12")  # type: ignore[arg-type]
+
     def test_rejects_duplicate_doc_ids(self) -> None:
         with pytest.raises(ValueError, match="doc_ids must be unique"):
             BM25Retriever([["alpha"], ["beta"]], doc_ids=[7, 7])
