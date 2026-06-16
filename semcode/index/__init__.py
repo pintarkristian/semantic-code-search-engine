@@ -100,6 +100,8 @@ class VectorStore:
             raise ValueError("FAISS vector dimension must be positive")
         if ids is not None:
             raw_ids = np.asarray(ids)
+            if raw_ids.ndim != 1:
+                raise ValueError(f"Expected 1-D FAISS ids, got shape {raw_ids.shape}")
             if not np.issubdtype(raw_ids.dtype, np.integer):
                 raise ValueError("FAISS ids must be integers")
             ids = np.ascontiguousarray(raw_ids, dtype=np.int64)

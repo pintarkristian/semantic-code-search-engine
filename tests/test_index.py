@@ -160,6 +160,13 @@ def test_build_rejects_non_integer_faiss_ids(tmp_path: Path) -> None:
         store.build(vecs, ids=np.asarray([1.0, 2.0, 3.0], dtype=np.float32))
 
 
+def test_build_rejects_non_1d_faiss_ids(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    with pytest.raises(ValueError, match="1-D FAISS ids"):
+        store.build(vecs, ids=np.asarray([[1], [2], [3]], dtype=np.int64))
+
+
 # ---------------------------------------------------------------------------
 # VectorStore — search
 # ---------------------------------------------------------------------------
