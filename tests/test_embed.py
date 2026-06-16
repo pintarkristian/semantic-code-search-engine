@@ -486,6 +486,15 @@ def test_embedding_cache_rejects_non_finite_vector_on_set(settings: Settings) ->
         cache.set("bad", vector)
 
 
+def test_embedding_cache_copies_vectors_on_set(settings: Settings) -> None:
+    cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
+    vector = np.zeros(_MOCK_DIM, dtype=np.float32)
+    cache.set("stable", vector)
+    vector[0] = 1.0
+
+    assert cache.get("stable")[0] == 0.0
+
+
 def test_cached_embedding_counts_duplicate_content_as_hits(settings: Settings) -> None:
     df = pd.DataFrame(
         [
