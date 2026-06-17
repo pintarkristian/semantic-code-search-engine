@@ -90,6 +90,15 @@ def test_feature_builder_rejects_non_finite_scores() -> None:
         build_features("validate token", candidates)
 
 
+def test_feature_builder_rejects_non_numeric_scores() -> None:
+    candidates = _candidate_frame()
+    candidates["bm25_score"] = candidates["bm25_score"].astype("object")
+    candidates.loc[0, "bm25_score"] = "bad"
+
+    with pytest.raises(ValueError, match="bm25_score must be numeric"):
+        build_features("validate token", candidates)
+
+
 def test_add_labels_requires_chunk_id() -> None:
     candidates = _candidate_frame().drop(columns=["chunk_id"])
 

@@ -32,7 +32,10 @@ def _tokens(text: object) -> set[str]:
 
 
 def _numeric_feature(row: pd.Series, column: str) -> float:
-    value = float(row.get(column, 0.0) or 0.0)
+    try:
+        value = float(row.get(column, 0.0) or 0.0)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{column} must be numeric") from exc
     if not math.isfinite(value):
         raise ValueError(f"{column} must be finite")
     return value
