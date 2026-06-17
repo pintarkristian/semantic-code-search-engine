@@ -317,6 +317,8 @@ class EmbeddingCache:
         return None if vector is None else vector.copy()
 
     def set(self, content_hash: str, vector: np.ndarray) -> None:
+        if not isinstance(content_hash, str):
+            raise TypeError("content_hash must be a string")
         arr = np.asarray(vector, dtype=np.float32)
         if arr.shape != (self.dimension,):
             raise ValueError(
