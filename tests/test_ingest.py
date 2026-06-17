@@ -115,6 +115,11 @@ def test_chunk_id_rejects_non_integer_start_line(ingestor: CodeIngestor) -> None
         ingestor._make_chunk_id("auth.py", "validate", "1", 10)  # type: ignore[arg-type]
 
 
+def test_chunk_id_rejects_non_integer_end_line(ingestor: CodeIngestor) -> None:
+    with pytest.raises(TypeError, match="end_line must be an integer"):
+        ingestor._make_chunk_id("auth.py", "validate", 1, "10")  # type: ignore[arg-type]
+
+
 # ---------------------------------------------------------------------------
 # Language detection
 # ---------------------------------------------------------------------------
