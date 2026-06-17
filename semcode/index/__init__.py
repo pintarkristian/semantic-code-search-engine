@@ -286,6 +286,9 @@ class VectorStore:
         saved_chunks = manifest.get("chunk_count")
         if not isinstance(saved_chunks, int) or saved_chunks < 0:
             raise ManifestMismatchError("Index manifest chunk_count must be a non-negative integer.")
+        index_type = manifest.get("index_type")
+        if index_type not in {"flat", "ivf"}:
+            raise ManifestMismatchError("Index manifest index_type must be 'flat' or 'ivf'.")
         if expected_dim is not None:
             if saved_dim != expected_dim:
                 raise ManifestMismatchError(
