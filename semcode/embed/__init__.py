@@ -209,6 +209,8 @@ class EmbeddingCache:
 
     def __init__(self, settings: Settings, *, model_name: str, dimension: int) -> None:
         self.settings = settings
+        if not isinstance(model_name, str):
+            raise TypeError("model_name must be a string")
         self.model_name = model_name
         try:
             self.dimension = int(dimension)
