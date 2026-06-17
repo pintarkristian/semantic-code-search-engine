@@ -93,6 +93,8 @@ def _reciprocal_rank_fusion(
         raise ValueError("RRF k must be positive")
     if not isinstance(dense_weight, int | float) or not isinstance(bm25_weight, int | float):
         raise TypeError("RRF weights must be numeric")
+    if not np.isfinite(dense_weight) or not np.isfinite(bm25_weight):
+        raise ValueError("RRF weights must be finite")
     if dense_weight < 0 or bm25_weight < 0:
         raise ValueError("RRF weights must be non-negative")
     if dense_weight + bm25_weight <= 0:
