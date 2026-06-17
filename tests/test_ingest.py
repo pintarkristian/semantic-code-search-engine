@@ -100,6 +100,26 @@ def test_chunk_id_rejects_blank_components(ingestor: CodeIngestor) -> None:
         ingestor._make_chunk_id("auth.py", "   ", 1, 10)
 
 
+def test_chunk_id_rejects_non_string_path(ingestor: CodeIngestor) -> None:
+    with pytest.raises(TypeError, match="path must be a string"):
+        ingestor._make_chunk_id(Path("auth.py"), "validate", 1, 10)  # type: ignore[arg-type]
+
+
+def test_chunk_id_rejects_non_string_symbol(ingestor: CodeIngestor) -> None:
+    with pytest.raises(TypeError, match="symbol name must be a string"):
+        ingestor._make_chunk_id("auth.py", 123, 1, 10)  # type: ignore[arg-type]
+
+
+def test_chunk_id_rejects_non_integer_start_line(ingestor: CodeIngestor) -> None:
+    with pytest.raises(TypeError, match="start_line must be an integer"):
+        ingestor._make_chunk_id("auth.py", "validate", "1", 10)  # type: ignore[arg-type]
+
+
+def test_chunk_id_rejects_non_integer_end_line(ingestor: CodeIngestor) -> None:
+    with pytest.raises(TypeError, match="end_line must be an integer"):
+        ingestor._make_chunk_id("auth.py", "validate", 1, "10")  # type: ignore[arg-type]
+
+
 # ---------------------------------------------------------------------------
 # Language detection
 # ---------------------------------------------------------------------------
@@ -417,11 +437,25 @@ def test_ingestor_rejects_non_positive_window_lines(tmp_path: Path) -> None:
         CodeIngestor(repo, _settings(tmp_path), window_lines=0)
 
 
+def test_ingestor_rejects_non_integer_window_lines(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    with pytest.raises(TypeError, match="window_lines must be an integer"):
+        CodeIngestor(repo, _settings(tmp_path), window_lines="50")  # type: ignore[arg-type]
+
+
 def test_ingestor_rejects_non_positive_window_stride(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
     with pytest.raises(ValueError, match="window_stride must be positive"):
         CodeIngestor(repo, _settings(tmp_path), window_stride=0)
+
+
+def test_ingestor_rejects_non_integer_window_stride(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    with pytest.raises(TypeError, match="window_stride must be an integer"):
+        CodeIngestor(repo, _settings(tmp_path), window_stride="25")  # type: ignore[arg-type]
 
 
 def test_ingestor_rejects_missing_repo_path(tmp_path: Path) -> None:

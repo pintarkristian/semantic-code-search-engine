@@ -53,6 +53,26 @@ def test_path_fields_are_path_objects(monkeypatch: pytest.MonkeyPatch) -> None:
     assert s.faiss_index_path == Path("/tmp/mydata/custom.faiss")
 
 
+def test_data_dir_must_not_be_blank() -> None:
+    with pytest.raises(ValidationError, match="data_dir"):
+        Settings(data_dir="   ")
+
+
+def test_faiss_index_path_must_not_be_blank() -> None:
+    with pytest.raises(ValidationError, match="faiss_index_path"):
+        Settings(faiss_index_path="   ")
+
+
+def test_metadata_path_must_not_be_blank() -> None:
+    with pytest.raises(ValidationError, match="metadata_path"):
+        Settings(metadata_path="   ")
+
+
+def test_reranker_model_path_must_not_be_blank() -> None:
+    with pytest.raises(ValidationError, match="reranker_model_path"):
+        Settings(reranker_model_path="   ")
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

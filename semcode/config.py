@@ -118,6 +118,34 @@ class Settings(BaseSettings):
             raise ValueError("embedding_model_name must contain non-whitespace text")
         return value.strip()
 
+    @field_validator("data_dir", mode="before")
+    @classmethod
+    def _validate_data_dir(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            raise ValueError("data_dir must contain non-whitespace text")
+        return value
+
+    @field_validator("faiss_index_path", mode="before")
+    @classmethod
+    def _validate_faiss_index_path(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            raise ValueError("faiss_index_path must contain non-whitespace text")
+        return value
+
+    @field_validator("metadata_path", mode="before")
+    @classmethod
+    def _validate_metadata_path(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            raise ValueError("metadata_path must contain non-whitespace text")
+        return value
+
+    @field_validator("reranker_model_path", mode="before")
+    @classmethod
+    def _validate_reranker_model_path(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            raise ValueError("reranker_model_path must contain non-whitespace text")
+        return value
+
     @model_validator(mode="after")
     def _validate_retrieval_weights(self) -> Settings:
         if not math.isfinite(self.request_timeout_seconds):

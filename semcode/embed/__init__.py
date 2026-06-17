@@ -53,6 +53,8 @@ def chunk_to_text(row: Any, max_chars: int = 2048) -> str:
     (the model's tokeniser will also truncate, but this avoids sending very large
     strings over the wire in future distributed setups).
     """
+    if not isinstance(max_chars, int):
+        raise TypeError("max_chars must be an integer")
     if max_chars <= 0:
         raise ValueError("max_chars must be positive")
     parts: list[str] = []
@@ -162,6 +164,8 @@ class Embedder:
             np.ndarray of shape (len(texts), dimension), dtype float32,
             with each row L2-normalised to unit length.
         """
+        if not isinstance(texts, list):
+            raise TypeError("texts must be a list of strings")
         if any(not isinstance(text, str) for text in texts):
             raise TypeError("texts must be a list of strings")
         if not texts:
@@ -205,6 +209,10 @@ class EmbeddingCache:
 
     def __init__(self, settings: Settings, *, model_name: str, dimension: int) -> None:
         self.settings = settings
+        if not isinstance(model_name, str):
+            raise TypeError("model_name must be a string")
+        if not model_name.strip():
+            raise ValueError("model_name must contain non-whitespace text")
         self.model_name = model_name
         try:
             self.dimension = int(dimension)
@@ -274,6 +282,9 @@ class EmbeddingCache:
             if vector.shape != (self.dimension,):
                 skipped += 1
                 continue
+            if not np.isfinite(vector).all():
+                skipped += 1
+                continue
             loaded[str(key)] = vector
         self._vectors = loaded
         log.info("loaded embedding cache", path=str(self.path), entries=len(self._vectors))
@@ -301,10 +312,18 @@ class EmbeddingCache:
             self.path.unlink()
 
     def get(self, content_hash: str) -> np.ndarray | None:
+        if not isinstance(content_hash, str):
+            raise TypeError("content_hash must be a string")
+        if not content_hash.strip():
+            raise ValueError("content_hash must contain non-whitespace text")
         vector = self._vectors.get(content_hash)
         return None if vector is None else vector.copy()
 
     def set(self, content_hash: str, vector: np.ndarray) -> None:
+        if not isinstance(content_hash, str):
+            raise TypeError("content_hash must be a string")
+        if not content_hash.strip():
+            raise ValueError("content_hash must contain non-whitespace text")
         arr = np.asarray(vector, dtype=np.float32)
         if arr.shape != (self.dimension,):
             raise ValueError(

@@ -220,6 +220,11 @@ def test_load_labels_rejects_invalid_json_with_path(tmp_path: Path) -> None:
         load_labels(labels_path)
 
 
+def test_load_labels_rejects_non_path_input() -> None:
+    with pytest.raises(TypeError, match="pathlib.Path"):
+        load_labels("labels.json")  # type: ignore[arg-type]
+
+
 def test_load_labels_rejects_blank_queries(tmp_path: Path) -> None:
     labels_path = tmp_path / "labels.json"
     labels_path.write_text(json.dumps({"   ": ["chunk-1"]}), encoding="utf-8")
@@ -264,6 +269,26 @@ def test_build_dataset_rejects_invalid_sampling_options(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="negatives_per_query"):
         build_reranker_dataset(labels_path, tmp_path / "dataset.parquet", negatives_per_query=-1)
+
+
+def test_build_dataset_rejects_non_path_output(tmp_path: Path) -> None:
+    labels_path = tmp_path / "labels.json"
+    labels_path.write_text(json.dumps({"validate token": ["chunk-1"]}), encoding="utf-8")
+
+    with pytest.raises(TypeError, match="output_path"):
+        build_reranker_dataset(labels_path, "dataset.parquet")  # type: ignore[arg-type]
+
+
+def test_build_dataset_rejects_non_integer_candidate_count(tmp_path: Path) -> None:
+    labels_path = tmp_path / "labels.json"
+    labels_path.write_text(json.dumps({"validate token": ["chunk-1"]}), encoding="utf-8")
+
+    with pytest.raises(TypeError, match="candidates_per_query"):
+        build_reranker_dataset(
+            labels_path,
+            tmp_path / "dataset.parquet",
+            candidates_per_query="5",  # type: ignore[arg-type]
+        )
 
 
 def test_train_model_rejects_invalid_training_options(tmp_path: Path) -> None:

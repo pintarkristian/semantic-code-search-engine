@@ -96,8 +96,12 @@ class CodeIngestor:
             raise FileNotFoundError(f"Repository path does not exist: {self.repo_path}")
         if not self.repo_path.is_dir():
             raise NotADirectoryError(f"Repository path is not a directory: {self.repo_path}")
+        if not isinstance(window_lines, int):
+            raise TypeError("window_lines must be an integer")
         if window_lines <= 0:
             raise ValueError("window_lines must be positive")
+        if not isinstance(window_stride, int):
+            raise TypeError("window_stride must be an integer")
         if window_stride <= 0:
             raise ValueError("window_stride must be positive")
         self.window_lines = window_lines
@@ -149,6 +153,14 @@ class CodeIngestor:
     ) -> str:
         # The hash is a durable external key, so reject malformed inputs instead
         # of letting empty path/symbol components collide in surprising ways.
+        if not isinstance(rel_path, str):
+            raise TypeError("chunk ID path must be a string")
+        if not isinstance(symbol_name, str):
+            raise TypeError("chunk ID symbol name must be a string")
+        if not isinstance(start_line, int):
+            raise TypeError("chunk ID start_line must be an integer")
+        if not isinstance(end_line, int):
+            raise TypeError("chunk ID end_line must be an integer")
         if not rel_path.strip() or not symbol_name.strip():
             raise ValueError("chunk ID path and symbol name must be non-empty")
         if start_line < 1 or end_line < start_line:

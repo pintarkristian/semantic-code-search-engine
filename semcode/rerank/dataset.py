@@ -23,6 +23,8 @@ def load_labels(path: Path) -> dict[str, list[str]]:
       {"query text": ["chunk_id", ...]}
       [{"query": "query text", "relevant_chunk_ids": ["chunk_id", ...]}, ...]
     """
+    if not isinstance(path, Path):
+        raise TypeError("labels path must be a pathlib.Path")
     try:
         raw: Any = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
@@ -99,6 +101,10 @@ def build_reranker_dataset(
 ) -> pd.DataFrame:
     """Retrieve hybrid candidates, label positives/negatives, and save parquet."""
     settings = settings or get_settings()
+    if not isinstance(output_path, Path):
+        raise TypeError("output_path must be a pathlib.Path")
+    if candidates_per_query is not None and not isinstance(candidates_per_query, int):
+        raise TypeError("candidates_per_query must be an integer")
     if candidates_per_query is not None and candidates_per_query <= 0:
         raise ValueError("candidates_per_query must be positive")
     if negatives_per_query < 0:

@@ -196,6 +196,11 @@ def test_chunk_to_text_rejects_non_positive_max_chars() -> None:
         chunk_to_text({"code": "def ok(): pass"}, max_chars=0)
 
 
+def test_chunk_to_text_rejects_non_integer_max_chars() -> None:
+    with pytest.raises(TypeError, match="max_chars must be an integer"):
+        chunk_to_text({"code": "def ok(): pass"}, max_chars="20")  # type: ignore[arg-type]
+
+
 def test_content_hash_for_text_rejects_non_string() -> None:
     with pytest.raises(TypeError, match="expects a string"):
         content_hash_for_text(123)  # type: ignore[arg-type]
@@ -248,6 +253,11 @@ def test_encode_single_text(embedder: Embedder) -> None:
 def test_encode_rejects_non_string_items(embedder: Embedder) -> None:
     with pytest.raises(TypeError, match="list of strings"):
         embedder.encode(["ok", 123])  # type: ignore[list-item]
+
+
+def test_encode_rejects_non_list_texts(embedder: Embedder) -> None:
+    with pytest.raises(TypeError, match="list of strings"):
+        embedder.encode("not a list")  # type: ignore[arg-type]
 
 
 def test_encode_rejects_invalid_model_output_shape(settings: Settings) -> None:
@@ -435,6 +445,16 @@ def test_embedding_cache_rejects_non_integer_dimension(settings: Settings) -> No
         EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension="bad")  # type: ignore[arg-type]
 
 
+def test_embedding_cache_rejects_non_string_model_name(settings: Settings) -> None:
+    with pytest.raises(TypeError, match="model_name must be a string"):
+        EmbeddingCache(settings, model_name=123, dimension=_MOCK_DIM)  # type: ignore[arg-type]
+
+
+def test_embedding_cache_rejects_blank_model_name(settings: Settings) -> None:
+    with pytest.raises(ValueError, match="model_name"):
+        EmbeddingCache(settings, model_name="   ", dimension=_MOCK_DIM)
+
+
 def test_embedding_cache_ignores_invalid_dimension_metadata(settings: Settings) -> None:
     cache_path = settings.data_dir / "embedding_cache.pkl"
     cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -493,6 +513,26 @@ def test_embedding_cache_skips_wrong_dimension_vectors(settings: Settings) -> No
     assert cache.get("good") is not None
 
 
+def test_embedding_cache_skips_non_finite_loaded_vectors(settings: Settings) -> None:
+    cache_path = settings.data_dir / "embedding_cache.pkl"
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    bad = np.zeros(_MOCK_DIM, dtype=np.float32)
+    bad[0] = np.nan
+    with open(cache_path, "wb") as f:
+        pickle.dump(
+            {
+                "model_name": settings.embedding_model_name,
+                "dimension": _MOCK_DIM,
+                "vectors": {"bad": bad},
+            },
+            f,
+        )
+
+    cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
+
+    assert cache.get("bad") is None
+
+
 def test_embedding_cache_rejects_wrong_dimension_on_set(settings: Settings) -> None:
     cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
 
@@ -507,6 +547,34 @@ def test_embedding_cache_rejects_non_finite_vector_on_set(settings: Settings) ->
 
     with pytest.raises(ValueError, match="finite"):
         cache.set("bad", vector)
+
+
+def test_embedding_cache_rejects_non_string_set_key(settings: Settings) -> None:
+    cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
+
+    with pytest.raises(TypeError, match="content_hash must be a string"):
+        cache.set(123, np.zeros(_MOCK_DIM, dtype=np.float32))  # type: ignore[arg-type]
+
+
+def test_embedding_cache_rejects_blank_set_key(settings: Settings) -> None:
+    cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
+
+    with pytest.raises(ValueError, match="content_hash"):
+        cache.set("   ", np.zeros(_MOCK_DIM, dtype=np.float32))
+
+
+def test_embedding_cache_rejects_non_string_get_key(settings: Settings) -> None:
+    cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
+
+    with pytest.raises(TypeError, match="content_hash must be a string"):
+        cache.get(123)  # type: ignore[arg-type]
+
+
+def test_embedding_cache_rejects_blank_get_key(settings: Settings) -> None:
+    cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
+
+    with pytest.raises(ValueError, match="content_hash"):
+        cache.get("   ")
 
 
 def test_embedding_cache_copies_vectors_on_set(settings: Settings) -> None:
