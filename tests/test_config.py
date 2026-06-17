@@ -148,6 +148,11 @@ def test_negative_retrieval_weight_rejected() -> None:
         Settings(dense_weight=-0.1)
 
 
+def test_non_finite_retrieval_weight_rejected() -> None:
+    with pytest.raises(ValidationError, match="finite"):
+        Settings(dense_weight=float("nan"))
+
+
 def test_all_zero_retrieval_weights_rejected() -> None:
     with pytest.raises(ValidationError, match="at least one retrieval weight"):
         Settings(dense_weight=0.0, bm25_weight=0.0)
