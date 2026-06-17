@@ -101,6 +101,8 @@ def build_reranker_dataset(
 ) -> pd.DataFrame:
     """Retrieve hybrid candidates, label positives/negatives, and save parquet."""
     settings = settings or get_settings()
+    if not isinstance(output_path, Path):
+        raise TypeError("output_path must be a pathlib.Path")
     if candidates_per_query is not None and candidates_per_query <= 0:
         raise ValueError("candidates_per_query must be positive")
     if negatives_per_query < 0:
