@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from semcode.config import Settings, get_settings
 from semcode.embed import Embedder
@@ -58,6 +58,12 @@ class SearchResult(BaseModel):
     start_line: int
     end_line: int
     snippet: str
+
+    @model_validator(mode="after")
+    def _validate_line_span(self) -> SearchResult:
+        if self.start_line < 1 or self.end_line < self.start_line:
+            raise ValueError("SearchResult line span must be 1-indexed and ordered")
+        return self
 
 
 # ---------------------------------------------------------------------------

@@ -117,6 +117,20 @@ class TestSearchResult:
         )
         assert isinstance(r.score, float)
 
+    def test_rejects_invalid_line_span(self) -> None:
+        with pytest.raises(ValueError, match="line span"):
+            SearchResult(
+                rank=1,
+                score=0.5,
+                file_path="src/auth.py",
+                symbol_name="validate",
+                symbol_type="function",
+                language="python",
+                start_line=10,
+                end_line=9,
+                snippet="def validate(): pass",
+            )
+
 
 # ---------------------------------------------------------------------------
 # Snippet helper
