@@ -146,6 +146,10 @@ class TestMakeSnippet:
         with pytest.raises(ValueError, match="max_lines"):
             _make_snippet("def f(): pass", max_lines=0)
 
+    def test_rejects_non_integer_max_lines(self) -> None:
+        with pytest.raises(TypeError, match="max_lines must be an integer"):
+            _make_snippet("def f(): pass", max_lines="6")  # type: ignore[arg-type]
+
     def test_short_code_unchanged(self) -> None:
         code = "x = 1\ny = 2"
         assert _make_snippet(code, max_lines=6) == code
