@@ -61,6 +61,8 @@ class SearchResult(BaseModel):
 
     @model_validator(mode="after")
     def _validate_line_span(self) -> SearchResult:
+        if self.rank <= 0:
+            raise ValueError("SearchResult rank must be positive")
         if self.start_line < 1 or self.end_line < self.start_line:
             raise ValueError("SearchResult line span must be 1-indexed and ordered")
         for field_name in ("file_path", "symbol_name", "symbol_type", "language"):

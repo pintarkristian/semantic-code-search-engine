@@ -145,6 +145,20 @@ class TestSearchResult:
                 snippet="def validate(): pass",
             )
 
+    def test_rejects_non_positive_rank(self) -> None:
+        with pytest.raises(ValueError, match="rank must be positive"):
+            SearchResult(
+                rank=0,
+                score=0.5,
+                file_path="src/auth.py",
+                symbol_name="validate",
+                symbol_type="function",
+                language="python",
+                start_line=1,
+                end_line=2,
+                snippet="def validate(): pass",
+            )
+
 
 # ---------------------------------------------------------------------------
 # Snippet helper
