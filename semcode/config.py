@@ -118,6 +118,13 @@ class Settings(BaseSettings):
             raise ValueError("embedding_model_name must contain non-whitespace text")
         return value.strip()
 
+    @field_validator("data_dir", mode="before")
+    @classmethod
+    def _validate_data_dir(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            raise ValueError("data_dir must contain non-whitespace text")
+        return value
+
     @model_validator(mode="after")
     def _validate_retrieval_weights(self) -> Settings:
         if not math.isfinite(self.request_timeout_seconds):
