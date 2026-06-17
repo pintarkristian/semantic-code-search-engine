@@ -132,6 +132,17 @@ async def test_blank_request_id_header_is_replaced(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_whitespace_request_id_header_is_replaced(tmp_path: Path) -> None:
+    app = create_app(_settings(tmp_path))
+    async with _client(app) as client:
+        response = await client.get("/health", headers={"x-request-id": "   "})
+
+    assert response.status_code == 200
+    assert response.headers["x-request-id"].strip()
+    assert response.headers["x-request-id"] != "   "
+
+
+@pytest.mark.asyncio
 async def test_health_with_index(tmp_path: Path) -> None:
     app, _ = _preindexed_app(tmp_path)
     async with _client(app) as client:

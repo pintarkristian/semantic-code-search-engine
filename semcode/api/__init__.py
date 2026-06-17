@@ -357,7 +357,8 @@ def _install_observability_middleware(app: FastAPI, settings: Settings) -> None:
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next):  # type: ignore[no-untyped-def]
         start = time.perf_counter()
-        request_id = request.headers.get("x-request-id") or uuid.uuid4().hex
+        header_request_id = (request.headers.get("x-request-id") or "").strip()
+        request_id = header_request_id or uuid.uuid4().hex
         request.state.request_id = request_id
         status_code = 500
         response: Response
