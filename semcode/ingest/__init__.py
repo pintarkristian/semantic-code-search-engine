@@ -157,6 +157,8 @@ class CodeIngestor:
             raise TypeError("chunk ID path must be a string")
         if not isinstance(symbol_name, str):
             raise TypeError("chunk ID symbol name must be a string")
+        if not isinstance(start_line, int):
+            raise TypeError("chunk ID start_line must be an integer")
         if not rel_path.strip() or not symbol_name.strip():
             raise ValueError("chunk ID path and symbol name must be non-empty")
         if start_line < 1 or end_line < start_line:
