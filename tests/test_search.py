@@ -131,6 +131,20 @@ class TestSearchResult:
                 snippet="def validate(): pass",
             )
 
+    def test_rejects_blank_display_fields(self) -> None:
+        with pytest.raises(ValueError, match="file_path"):
+            SearchResult(
+                rank=1,
+                score=0.5,
+                file_path="   ",
+                symbol_name="validate",
+                symbol_type="function",
+                language="python",
+                start_line=1,
+                end_line=2,
+                snippet="def validate(): pass",
+            )
+
 
 # ---------------------------------------------------------------------------
 # Snippet helper

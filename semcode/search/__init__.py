@@ -63,6 +63,9 @@ class SearchResult(BaseModel):
     def _validate_line_span(self) -> SearchResult:
         if self.start_line < 1 or self.end_line < self.start_line:
             raise ValueError("SearchResult line span must be 1-indexed and ordered")
+        for field_name in ("file_path", "symbol_name", "symbol_type", "language"):
+            if not str(getattr(self, field_name)).strip():
+                raise ValueError(f"SearchResult {field_name} must contain non-whitespace text")
         return self
 
 
