@@ -265,6 +265,10 @@ class VectorStore:
             inner = faiss.downcast_index(self._index.index)
             if isinstance(inner, faiss.IndexIVFFlat):
                 inner.nprobe = _IVF_NPROBE
+        if int(self._index.ntotal) != int(manifest["chunk_count"]):
+            raise ManifestMismatchError(
+                "Index manifest chunk_count does not match FAISS index size."
+            )
         self._manifest = manifest
         log.info(
             "loaded index",
