@@ -289,6 +289,9 @@ class VectorStore:
         index_type = manifest.get("index_type")
         if index_type not in {"flat", "ivf"}:
             raise ManifestMismatchError("Index manifest index_type must be 'flat' or 'ivf'.")
+        id_mapped = manifest.get("id_mapped", False)
+        if not isinstance(id_mapped, bool):
+            raise ManifestMismatchError("Index manifest id_mapped must be a boolean.")
         if expected_dim is not None:
             if saved_dim != expected_dim:
                 raise ManifestMismatchError(
