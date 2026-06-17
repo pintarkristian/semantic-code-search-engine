@@ -77,6 +77,11 @@ def test_rate_limit_zero_disables_limiter() -> None:
     assert Settings(rate_limit_requests=0).rate_limit_requests == 0
 
 
+def test_request_timeout_must_be_finite() -> None:
+    with pytest.raises(ValidationError, match="request_timeout_seconds"):
+        Settings(request_timeout_seconds=float("inf"))
+
+
 def test_port_must_not_exceed_tcp_range() -> None:
     with pytest.raises(ValidationError):
         Settings(port=65536)
@@ -141,6 +146,15 @@ def test_embedding_device_must_be_string() -> None:
 
 def test_embedding_device_is_trimmed_and_normalized() -> None:
     assert Settings(embedding_device=" CUDA ").embedding_device == "cuda"
+
+
+def test_embedding_model_name_must_not_be_blank() -> None:
+    with pytest.raises(ValidationError, match="embedding_model_name"):
+        Settings(embedding_model_name="   ")
+
+
+def test_embedding_model_name_is_trimmed() -> None:
+    assert Settings(embedding_model_name=" test-model ").embedding_model_name == "test-model"
 
 
 def test_negative_retrieval_weight_rejected() -> None:

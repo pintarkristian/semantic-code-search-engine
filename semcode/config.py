@@ -109,8 +109,19 @@ class Settings(BaseSettings):
             raise ValueError("embedding_device must be 'cpu' or 'cuda'")
         return normalized
 
+    @field_validator("embedding_model_name", mode="before")
+    @classmethod
+    def _validate_embedding_model_name(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("embedding_model_name must be a string")
+        if not value.strip():
+            raise ValueError("embedding_model_name must contain non-whitespace text")
+        return value.strip()
+
     @model_validator(mode="after")
     def _validate_retrieval_weights(self) -> Settings:
+        if not math.isfinite(self.request_timeout_seconds):
+            raise ValueError("request_timeout_seconds must be finite")
         # These fields interact at runtime: invalid combinations can produce
         # empty or out-of-bounds rankings even though each value is valid alone.
         if not math.isfinite(self.dense_weight) or not math.isfinite(self.bm25_weight):
