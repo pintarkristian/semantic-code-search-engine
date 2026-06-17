@@ -100,6 +100,11 @@ def test_chunk_id_rejects_blank_components(ingestor: CodeIngestor) -> None:
         ingestor._make_chunk_id("auth.py", "   ", 1, 10)
 
 
+def test_chunk_id_rejects_non_string_path(ingestor: CodeIngestor) -> None:
+    with pytest.raises(TypeError, match="path must be a string"):
+        ingestor._make_chunk_id(Path("auth.py"), "validate", 1, 10)  # type: ignore[arg-type]
+
+
 # ---------------------------------------------------------------------------
 # Language detection
 # ---------------------------------------------------------------------------

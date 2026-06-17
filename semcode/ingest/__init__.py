@@ -153,6 +153,8 @@ class CodeIngestor:
     ) -> str:
         # The hash is a durable external key, so reject malformed inputs instead
         # of letting empty path/symbol components collide in surprising ways.
+        if not isinstance(rel_path, str):
+            raise TypeError("chunk ID path must be a string")
         if not rel_path.strip() or not symbol_name.strip():
             raise ValueError("chunk ID path and symbol name must be non-empty")
         if start_line < 1 or end_line < start_line:
