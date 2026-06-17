@@ -77,6 +77,16 @@ def test_feature_builder_columns_are_stable() -> None:
     assert features["query_tokens_in_docstring"].tolist() == [1.0, 0.0]
 
 
+def test_feature_builder_trims_language_values() -> None:
+    candidates = _candidate_frame()
+    candidates.loc[0, "language"] = " Python "
+
+    features = build_features("validate token", candidates)
+
+    assert features.loc[0, "lang_python"] == 1.0
+    assert features.loc[0, "lang_other"] == 0.0
+
+
 def test_feature_builder_rejects_blank_query() -> None:
     with pytest.raises(ValueError, match="query must contain"):
         build_features("   ", _candidate_frame())

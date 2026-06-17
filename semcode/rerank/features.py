@@ -59,7 +59,7 @@ def build_features(query: str, candidates: pd.DataFrame) -> pd.DataFrame:
         symbol_tokens = _tokens(row.get("symbol_name", ""))
         code_tokens = _tokens(row.get("code", ""))
         doc_tokens = _tokens(row.get("docstring", ""))
-        language = str(row.get("language", "") or "").lower()
+        language = str(row.get("language", "") or "").strip().lower()
 
         symbol_overlap = len(query_tokens & symbol_tokens)
         docstring_hit = 1.0 if query_tokens and bool(query_tokens & doc_tokens) else 0.0
