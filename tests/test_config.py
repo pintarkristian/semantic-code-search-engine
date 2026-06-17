@@ -77,6 +77,11 @@ def test_rate_limit_zero_disables_limiter() -> None:
     assert Settings(rate_limit_requests=0).rate_limit_requests == 0
 
 
+def test_request_timeout_must_be_finite() -> None:
+    with pytest.raises(ValidationError, match="request_timeout_seconds"):
+        Settings(request_timeout_seconds=float("inf"))
+
+
 def test_port_must_not_exceed_tcp_range() -> None:
     with pytest.raises(ValidationError):
         Settings(port=65536)

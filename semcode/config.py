@@ -111,6 +111,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _validate_retrieval_weights(self) -> Settings:
+        if not math.isfinite(self.request_timeout_seconds):
+            raise ValueError("request_timeout_seconds must be finite")
         # These fields interact at runtime: invalid combinations can produce
         # empty or out-of-bounds rankings even though each value is valid alone.
         if not math.isfinite(self.dense_weight) or not math.isfinite(self.bm25_weight):
