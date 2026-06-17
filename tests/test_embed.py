@@ -255,6 +255,11 @@ def test_encode_rejects_non_string_items(embedder: Embedder) -> None:
         embedder.encode(["ok", 123])  # type: ignore[list-item]
 
 
+def test_encode_rejects_non_list_texts(embedder: Embedder) -> None:
+    with pytest.raises(TypeError, match="list of strings"):
+        embedder.encode("not a list")  # type: ignore[arg-type]
+
+
 def test_encode_rejects_invalid_model_output_shape(settings: Settings) -> None:
     emb = Embedder(settings, _model=_BadShapeModel())
 

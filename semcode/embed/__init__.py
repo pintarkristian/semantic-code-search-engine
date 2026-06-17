@@ -164,6 +164,8 @@ class Embedder:
             np.ndarray of shape (len(texts), dimension), dtype float32,
             with each row L2-normalised to unit length.
         """
+        if not isinstance(texts, list):
+            raise TypeError("texts must be a list of strings")
         if any(not isinstance(text, str) for text in texts):
             raise TypeError("texts must be a list of strings")
         if not texts:
