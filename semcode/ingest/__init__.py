@@ -96,6 +96,8 @@ class CodeIngestor:
             raise FileNotFoundError(f"Repository path does not exist: {self.repo_path}")
         if not self.repo_path.is_dir():
             raise NotADirectoryError(f"Repository path is not a directory: {self.repo_path}")
+        if not isinstance(window_lines, int):
+            raise TypeError("window_lines must be an integer")
         if window_lines <= 0:
             raise ValueError("window_lines must be positive")
         if window_stride <= 0:
