@@ -369,6 +369,21 @@ def test_reranker_score_falls_back_on_wrong_score_count(tmp_path: Path) -> None:
     np.testing.assert_allclose(scores, _candidate_frame()["fused_score"].to_numpy("float32"))
 
 
+def test_reranker_score_falls_back_on_non_finite_scores(tmp_path: Path) -> None:
+    class _BadSignature:
+        def __call__(self, features: Any) -> dict[str, np.ndarray]:
+            return {"scores": np.asarray([[np.nan], [0.5]], dtype="float32")}
+
+    reranker = ReRanker(_settings(tmp_path))
+    reranker._available = True
+    reranker._model = object()
+    reranker._signature = _BadSignature()
+
+    scores = reranker.score("validate token", _candidate_frame())
+
+    np.testing.assert_allclose(scores, _candidate_frame()["fused_score"].to_numpy("float32"))
+
+
 def test_trained_toy_model_loads_and_scores_in_probability_range(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     features = build_features("validate token", _candidate_frame())
