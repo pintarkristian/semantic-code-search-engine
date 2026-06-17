@@ -632,6 +632,10 @@ class TestTokenize:
     def test_empty_string(self) -> None:
         assert tokenize("") == []
 
+    def test_rejects_non_string_text(self) -> None:
+        with pytest.raises(TypeError, match="expects a string"):
+            tokenize(123)  # type: ignore[arg-type]
+
     def test_numbers_kept(self) -> None:
         tokens = tokenize("encode_base64")
         assert "encode" in tokens

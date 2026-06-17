@@ -44,6 +44,9 @@ def tokenize(text: str) -> list[str]:
         "XMLParser"      -> ["xml", "parser"]
         "QueryBuilder"   -> ["query", "builder"]
     """
+    if not isinstance(text, str):
+        raise TypeError("tokenize expects a string")
+
     # camelCase: insert space before uppercase that follows a lowercase letter
     text = re.sub(r"([a-z])([A-Z])", r"\1 \2", text)
     # ALL-CAPS prefix: insert space before uppercase+lowercase run (e.g. XMLParser -> XML Parser)
