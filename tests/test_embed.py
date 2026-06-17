@@ -196,6 +196,11 @@ def test_chunk_to_text_rejects_non_positive_max_chars() -> None:
         chunk_to_text({"code": "def ok(): pass"}, max_chars=0)
 
 
+def test_chunk_to_text_rejects_non_integer_max_chars() -> None:
+    with pytest.raises(TypeError, match="max_chars must be an integer"):
+        chunk_to_text({"code": "def ok(): pass"}, max_chars="20")  # type: ignore[arg-type]
+
+
 def test_content_hash_for_text_rejects_non_string() -> None:
     with pytest.raises(TypeError, match="expects a string"):
         content_hash_for_text(123)  # type: ignore[arg-type]

@@ -53,6 +53,8 @@ def chunk_to_text(row: Any, max_chars: int = 2048) -> str:
     (the model's tokeniser will also truncate, but this avoids sending very large
     strings over the wire in future distributed setups).
     """
+    if not isinstance(max_chars, int):
+        raise TypeError("max_chars must be an integer")
     if max_chars <= 0:
         raise ValueError("max_chars must be positive")
     parts: list[str] = []
