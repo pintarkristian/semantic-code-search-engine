@@ -311,6 +311,8 @@ class VectorStore:
         """
         if self._index is None:
             raise RuntimeError("Index not built or loaded. Call build() or load() first.")
+        if not isinstance(k, int):
+            raise TypeError("k must be an integer")
         if k <= 0:
             raise ValueError("k must be positive")
 
