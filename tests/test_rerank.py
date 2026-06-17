@@ -326,6 +326,14 @@ def test_reranker_score_rejects_blank_query(tmp_path: Path) -> None:
         reranker.score("   ", _candidate_frame())
 
 
+def test_reranker_fallback_replaces_non_finite_scores(tmp_path: Path) -> None:
+    candidates = _candidate_frame()
+    candidates.loc[0, "fused_score"] = np.nan
+    scores = ReRanker(_settings(tmp_path)).score("validate token", candidates)
+
+    np.testing.assert_allclose(scores, np.zeros(len(candidates), dtype="float32"))
+
+
 def test_reranker_unavailable_without_feature_schema(tmp_path: Path) -> None:
     model_path = tmp_path / "reranker"
     model_path.mkdir()

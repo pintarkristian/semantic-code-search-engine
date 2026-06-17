@@ -197,6 +197,9 @@ class ReRanker:
         fallback = candidates.get("fused_score", pd.Series([0.0] * len(candidates))).to_numpy(
             dtype="float32"
         )
+        if not np.isfinite(fallback).all():
+            log.warning("reranker fallback scores were non-finite; using zeros")
+            fallback = np.zeros(len(candidates), dtype="float32")
         if candidates.empty:
             return fallback
 
