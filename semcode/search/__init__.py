@@ -185,6 +185,10 @@ class Searcher:
         store.load(expected_dim=self.embedder.dimension)
 
         meta = pd.read_parquet(meta_path)
+        if len(meta) != store.ntotal:
+            raise ValueError(
+                f"Metadata row count {len(meta)} does not match FAISS index size {store.ntotal}."
+            )
         required_columns = {
             "chunk_id",
             "file_path",

@@ -399,6 +399,14 @@ class TestSearcher:
         with pytest.raises(ValueError, match="file_path values"):
             searcher.search("function", k=1)
 
+    def test_rejects_metadata_index_size_mismatch(self, tmp_path: Path) -> None:
+        settings, embedder, df = _build_index(tmp_path)
+        df.iloc[:-1].to_parquet(settings.metadata_path, index=False)
+        searcher = Searcher(settings, embedder=embedder)
+
+        with pytest.raises(ValueError, match="does not match FAISS index size"):
+            searcher.search("function", k=1)
+
     def test_search_trims_query_before_rerank(self, tmp_path: Path) -> None:
         settings = _settings(tmp_path)
         searcher = Searcher(settings, embedder=_mock_embedder(settings))
