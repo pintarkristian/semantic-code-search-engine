@@ -431,6 +431,13 @@ def test_ingestor_rejects_non_positive_window_stride(tmp_path: Path) -> None:
         CodeIngestor(repo, _settings(tmp_path), window_stride=0)
 
 
+def test_ingestor_rejects_non_integer_window_stride(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    with pytest.raises(TypeError, match="window_stride must be an integer"):
+        CodeIngestor(repo, _settings(tmp_path), window_stride="25")  # type: ignore[arg-type]
+
+
 def test_ingestor_rejects_missing_repo_path(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError, match="Repository path does not exist"):
         CodeIngestor(tmp_path / "missing", _settings(tmp_path))

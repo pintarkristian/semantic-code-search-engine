@@ -100,6 +100,8 @@ class CodeIngestor:
             raise TypeError("window_lines must be an integer")
         if window_lines <= 0:
             raise ValueError("window_lines must be positive")
+        if not isinstance(window_stride, int):
+            raise TypeError("window_stride must be an integer")
         if window_stride <= 0:
             raise ValueError("window_stride must be positive")
         self.window_lines = window_lines
