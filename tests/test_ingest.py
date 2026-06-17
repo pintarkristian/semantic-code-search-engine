@@ -436,6 +436,11 @@ def test_ingestor_rejects_file_repo_path(tmp_path: Path) -> None:
         CodeIngestor(repo_file, _settings(tmp_path))
 
 
+def test_ingestor_rejects_string_repo_path(tmp_path: Path) -> None:
+    with pytest.raises(TypeError, match="pathlib.Path"):
+        CodeIngestor(str(tmp_path), _settings(tmp_path))  # type: ignore[arg-type]
+
+
 # ---------------------------------------------------------------------------
 # Convenience wrapper
 # ---------------------------------------------------------------------------

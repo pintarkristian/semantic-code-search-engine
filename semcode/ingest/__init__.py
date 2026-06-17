@@ -88,6 +88,8 @@ class CodeIngestor:
         window_lines: int = _WINDOW_LINES,
         window_stride: int = _WINDOW_STRIDE,
     ) -> None:
+        if isinstance(repo_path, str):
+            raise TypeError("repo_path must be a pathlib.Path")
         self.repo_path = repo_path.resolve()
         self.settings = settings or get_settings()
         if not self.repo_path.exists():
