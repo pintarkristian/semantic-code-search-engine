@@ -136,6 +136,14 @@ def test_load_labels_rejects_blank_object_relevant_id(tmp_path: Path) -> None:
         load_labels(labels_path)
 
 
+def test_load_labels_rejects_non_string_chunk_ids(tmp_path: Path) -> None:
+    labels_path = tmp_path / "labels.json"
+    labels_path.write_text(json.dumps({"validate token": [123]}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="chunk IDs must be strings"):
+        load_labels(labels_path)
+
+
 def test_load_labels_rejects_invalid_list_entry_values(tmp_path: Path) -> None:
     labels_path = tmp_path / "labels.json"
     labels_path.write_text(

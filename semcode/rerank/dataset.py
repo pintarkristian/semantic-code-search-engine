@@ -77,6 +77,8 @@ def _label_chunk_ids(value: object, *, message: str) -> list[str]:
         raw_chunk_ids = value
     else:
         raise ValueError(message)
+    if any(not isinstance(chunk_id, str) for chunk_id in raw_chunk_ids):
+        raise ValueError("Label chunk IDs must be strings.")
     chunk_ids = [str(chunk_id).strip() for chunk_id in raw_chunk_ids]
     if not chunk_ids:
         raise ValueError("Label entries must include at least one relevant chunk ID.")
