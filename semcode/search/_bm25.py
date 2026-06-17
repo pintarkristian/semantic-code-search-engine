@@ -107,6 +107,8 @@ class BM25Retriever:
 
         Documents with a BM25 score of zero are excluded.
         """
+        if not isinstance(k, int):
+            raise TypeError("k must be an integer")
         if k <= 0:
             return []
         if self._bm25 is None or not self._corpus:

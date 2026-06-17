@@ -596,6 +596,11 @@ class TestBM25Retriever:
         bm25 = BM25Retriever([["alpha"], ["beta"]])
         assert bm25.search("alpha", k=0) == []
 
+    def test_rejects_non_integer_k(self) -> None:
+        bm25 = BM25Retriever([["alpha"], ["beta"]])
+        with pytest.raises(TypeError, match="k must be an integer"):
+            bm25.search("alpha", k="1")  # type: ignore[arg-type]
+
     def test_rejects_mismatched_doc_ids(self) -> None:
         with pytest.raises(ValueError, match="doc_ids"):
             BM25Retriever([["alpha"], ["beta"]], doc_ids=[10])
