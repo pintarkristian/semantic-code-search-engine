@@ -68,6 +68,11 @@ def test_metadata_path_must_not_be_blank() -> None:
         Settings(metadata_path="   ")
 
 
+def test_reranker_model_path_must_not_be_blank() -> None:
+    with pytest.raises(ValidationError, match="reranker_model_path"):
+        Settings(reranker_model_path="   ")
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

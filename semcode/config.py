@@ -139,6 +139,13 @@ class Settings(BaseSettings):
             raise ValueError("metadata_path must contain non-whitespace text")
         return value
 
+    @field_validator("reranker_model_path", mode="before")
+    @classmethod
+    def _validate_reranker_model_path(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            raise ValueError("reranker_model_path must contain non-whitespace text")
+        return value
+
     @model_validator(mode="after")
     def _validate_retrieval_weights(self) -> Settings:
         if not math.isfinite(self.request_timeout_seconds):
