@@ -222,6 +222,10 @@ class Searcher:
             log.warning("BM25 corpus not found, rebuilding from metadata", path=str(bm25_path))
             bm25 = BM25Retriever.from_dataframe(meta)
             bm25.save(bm25_path)
+        if len(bm25.doc_ids) != len(meta):
+            raise ValueError(
+                f"BM25 corpus document count {len(bm25.doc_ids)} does not match metadata rows {len(meta)}."
+            )
 
         self._store = store
         self._meta = meta

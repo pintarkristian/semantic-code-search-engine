@@ -354,11 +354,21 @@ class TestSearcher:
             searcher.search("function", k=1)
 
     def test_rejects_bm25_ids_missing_from_metadata(self, tmp_path: Path) -> None:
-        settings, embedder, _ = _build_index(tmp_path)
-        BM25Retriever([["function"]], doc_ids=[999]).save(bm25_corpus_path(settings.faiss_index_path))
+        settings, embedder, df = _build_index(tmp_path)
+        corpus = [["function"] for _ in range(len(df))]
+        doc_ids = [999] + list(range(1, len(df)))
+        BM25Retriever(corpus, doc_ids=doc_ids).save(bm25_corpus_path(settings.faiss_index_path))
         searcher = Searcher(settings, embedder=embedder)
 
         with pytest.raises(ValueError, match="not present in metadata"):
+            searcher.search("function", k=1)
+
+    def test_rejects_bm25_count_mismatch(self, tmp_path: Path) -> None:
+        settings, embedder, _ = _build_index(tmp_path)
+        BM25Retriever([["function"]], doc_ids=[0]).save(bm25_corpus_path(settings.faiss_index_path))
+        searcher = Searcher(settings, embedder=embedder)
+
+        with pytest.raises(ValueError, match="document count"):
             searcher.search("function", k=1)
 
     def test_rejects_duplicate_metadata_chunk_ids(self, tmp_path: Path) -> None:
