@@ -513,6 +513,26 @@ def test_embedding_cache_skips_wrong_dimension_vectors(settings: Settings) -> No
     assert cache.get("good") is not None
 
 
+def test_embedding_cache_skips_non_finite_loaded_vectors(settings: Settings) -> None:
+    cache_path = settings.data_dir / "embedding_cache.pkl"
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    bad = np.zeros(_MOCK_DIM, dtype=np.float32)
+    bad[0] = np.nan
+    with open(cache_path, "wb") as f:
+        pickle.dump(
+            {
+                "model_name": settings.embedding_model_name,
+                "dimension": _MOCK_DIM,
+                "vectors": {"bad": bad},
+            },
+            f,
+        )
+
+    cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
+
+    assert cache.get("bad") is None
+
+
 def test_embedding_cache_rejects_wrong_dimension_on_set(settings: Settings) -> None:
     cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
 

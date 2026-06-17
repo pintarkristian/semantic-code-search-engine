@@ -282,6 +282,9 @@ class EmbeddingCache:
             if vector.shape != (self.dimension,):
                 skipped += 1
                 continue
+            if not np.isfinite(vector).all():
+                skipped += 1
+                continue
             loaded[str(key)] = vector
         self._vectors = loaded
         log.info("loaded embedding cache", path=str(self.path), entries=len(self._vectors))
