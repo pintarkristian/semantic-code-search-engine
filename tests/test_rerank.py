@@ -279,6 +279,18 @@ def test_build_dataset_rejects_non_path_output(tmp_path: Path) -> None:
         build_reranker_dataset(labels_path, "dataset.parquet")  # type: ignore[arg-type]
 
 
+def test_build_dataset_rejects_non_integer_candidate_count(tmp_path: Path) -> None:
+    labels_path = tmp_path / "labels.json"
+    labels_path.write_text(json.dumps({"validate token": ["chunk-1"]}), encoding="utf-8")
+
+    with pytest.raises(TypeError, match="candidates_per_query"):
+        build_reranker_dataset(
+            labels_path,
+            tmp_path / "dataset.parquet",
+            candidates_per_query="5",  # type: ignore[arg-type]
+        )
+
+
 def test_train_model_rejects_invalid_training_options(tmp_path: Path) -> None:
     dataset_path = tmp_path / "missing.parquet"
 
