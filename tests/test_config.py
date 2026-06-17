@@ -148,6 +148,15 @@ def test_embedding_device_is_trimmed_and_normalized() -> None:
     assert Settings(embedding_device=" CUDA ").embedding_device == "cuda"
 
 
+def test_embedding_model_name_must_not_be_blank() -> None:
+    with pytest.raises(ValidationError, match="embedding_model_name"):
+        Settings(embedding_model_name="   ")
+
+
+def test_embedding_model_name_is_trimmed() -> None:
+    assert Settings(embedding_model_name=" test-model ").embedding_model_name == "test-model"
+
+
 def test_negative_retrieval_weight_rejected() -> None:
     with pytest.raises(ValidationError, match="non-negative"):
         Settings(dense_weight=-0.1)
