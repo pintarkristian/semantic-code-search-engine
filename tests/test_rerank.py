@@ -196,6 +196,17 @@ def test_load_labels_rejects_blank_queries(tmp_path: Path) -> None:
         load_labels(labels_path)
 
 
+def test_load_labels_rejects_non_string_list_query(tmp_path: Path) -> None:
+    labels_path = tmp_path / "labels.json"
+    labels_path.write_text(
+        json.dumps([{"query": 123, "relevant_chunk_ids": ["chunk-1"]}]),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Label queries must be strings"):
+        load_labels(labels_path)
+
+
 def test_load_labels_rejects_duplicate_list_queries(tmp_path: Path) -> None:
     labels_path = tmp_path / "labels.json"
     labels_path.write_text(

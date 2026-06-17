@@ -62,6 +62,8 @@ def load_labels(path: Path) -> dict[str, list[str]]:
 def _label_query_text(value: object) -> str:
     # Labels are keyed by the exact query text used for candidate retrieval, so
     # normalize once here instead of letting dict/list label formats diverge.
+    if not isinstance(value, str):
+        raise ValueError("Label queries must be strings.")
     query = str(value).strip()
     if not query:
         raise ValueError("Label queries must contain non-whitespace text.")
