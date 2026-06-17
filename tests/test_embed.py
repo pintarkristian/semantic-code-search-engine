@@ -536,6 +536,13 @@ def test_embedding_cache_rejects_non_string_set_key(settings: Settings) -> None:
         cache.set(123, np.zeros(_MOCK_DIM, dtype=np.float32))  # type: ignore[arg-type]
 
 
+def test_embedding_cache_rejects_blank_set_key(settings: Settings) -> None:
+    cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
+
+    with pytest.raises(ValueError, match="content_hash"):
+        cache.set("   ", np.zeros(_MOCK_DIM, dtype=np.float32))
+
+
 def test_embedding_cache_rejects_non_string_get_key(settings: Settings) -> None:
     cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
 
