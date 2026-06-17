@@ -105,6 +105,11 @@ def test_chunk_id_rejects_non_string_path(ingestor: CodeIngestor) -> None:
         ingestor._make_chunk_id(Path("auth.py"), "validate", 1, 10)  # type: ignore[arg-type]
 
 
+def test_chunk_id_rejects_non_string_symbol(ingestor: CodeIngestor) -> None:
+    with pytest.raises(TypeError, match="symbol name must be a string"):
+        ingestor._make_chunk_id("auth.py", 123, 1, 10)  # type: ignore[arg-type]
+
+
 # ---------------------------------------------------------------------------
 # Language detection
 # ---------------------------------------------------------------------------
