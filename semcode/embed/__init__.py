@@ -211,6 +211,8 @@ class EmbeddingCache:
         self.settings = settings
         if not isinstance(model_name, str):
             raise TypeError("model_name must be a string")
+        if not model_name.strip():
+            raise ValueError("model_name must contain non-whitespace text")
         self.model_name = model_name
         try:
             self.dimension = int(dimension)

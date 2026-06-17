@@ -450,6 +450,11 @@ def test_embedding_cache_rejects_non_string_model_name(settings: Settings) -> No
         EmbeddingCache(settings, model_name=123, dimension=_MOCK_DIM)  # type: ignore[arg-type]
 
 
+def test_embedding_cache_rejects_blank_model_name(settings: Settings) -> None:
+    with pytest.raises(ValueError, match="model_name"):
+        EmbeddingCache(settings, model_name="   ", dimension=_MOCK_DIM)
+
+
 def test_embedding_cache_ignores_invalid_dimension_metadata(settings: Settings) -> None:
     cache_path = settings.data_dir / "embedding_cache.pkl"
     cache_path.parent.mkdir(parents=True, exist_ok=True)
