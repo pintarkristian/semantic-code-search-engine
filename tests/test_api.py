@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
+import pandas as pd
 import pytest
 
 from semcode.api import _delete_artifact_path, _set_job_status, create_app
@@ -430,6 +431,21 @@ async def test_stats_handles_corrupt_metadata(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert response.json()["chunk_count"] == 0
     assert response.json()["language_breakdown"] == {}
+
+
+@pytest.mark.asyncio
+async def test_stats_ignores_blank_languages(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    pd.DataFrame({"language": ["python", " ", "python"]}).to_parquet(
+        settings.metadata_path,
+        index=False,
+    )
+    app = create_app(settings)
+    async with _client(app) as client:
+        response = await client.get("/stats")
+
+    assert response.status_code == 200
+    assert response.json()["language_breakdown"] == {"python": 2}
 
 
 @pytest.mark.asyncio

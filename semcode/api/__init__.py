@@ -321,9 +321,15 @@ def create_app(
                 df = pd.read_parquet(app_settings.metadata_path)
                 chunk_count = int(len(df))
                 if "language" in df.columns:
+                    # Stats are user-facing; ignore blank language metadata
+                    # instead of surfacing an empty-string bucket.
+                    languages = df["language"].astype(str).str.strip()
                     language_breakdown = {
                         str(lang): int(count)
-                        for lang, count in df["language"].value_counts().sort_index().items()
+                        for lang, count in languages[languages != ""]
+                        .value_counts()
+                        .sort_index()
+                        .items()
                     }
             except Exception as exc:
                 log.warning("failed to read metadata for stats", error=str(exc))
