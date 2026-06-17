@@ -87,9 +87,28 @@ def test_host_must_not_be_blank() -> None:
         Settings(host="   ")
 
 
+def test_host_must_be_string() -> None:
+    with pytest.raises(ValidationError, match="host must be a string"):
+        Settings(host=123)
+
+
+def test_app_name_must_not_be_blank() -> None:
+    with pytest.raises(ValidationError, match="app_name"):
+        Settings(app_name="   ")
+
+
+def test_app_name_is_trimmed() -> None:
+    assert Settings(app_name=" semcode-api ").app_name == "semcode-api"
+
+
 def test_invalid_log_level_rejected() -> None:
     with pytest.raises(ValidationError, match="log_level"):
         Settings(log_level="verbose")
+
+
+def test_log_level_must_be_string() -> None:
+    with pytest.raises(ValidationError, match="log_level must be a string"):
+        Settings(log_level=123)
 
 
 def test_log_level_is_trimmed_and_normalized() -> None:
@@ -101,6 +120,11 @@ def test_invalid_log_format_rejected() -> None:
         Settings(log_format="plain")
 
 
+def test_log_format_must_be_string() -> None:
+    with pytest.raises(ValidationError, match="log_format must be a string"):
+        Settings(log_format=123)
+
+
 def test_log_format_is_trimmed_and_normalized() -> None:
     assert Settings(log_format=" JSON ").log_format == "json"
 
@@ -110,6 +134,11 @@ def test_invalid_embedding_device_rejected() -> None:
         Settings(embedding_device="tpu")
 
 
+def test_embedding_device_must_be_string() -> None:
+    with pytest.raises(ValidationError, match="embedding_device must be a string"):
+        Settings(embedding_device=123)
+
+
 def test_embedding_device_is_trimmed_and_normalized() -> None:
     assert Settings(embedding_device=" CUDA ").embedding_device == "cuda"
 
@@ -117,6 +146,11 @@ def test_embedding_device_is_trimmed_and_normalized() -> None:
 def test_negative_retrieval_weight_rejected() -> None:
     with pytest.raises(ValidationError, match="non-negative"):
         Settings(dense_weight=-0.1)
+
+
+def test_non_finite_retrieval_weight_rejected() -> None:
+    with pytest.raises(ValidationError, match="finite"):
+        Settings(dense_weight=float("nan"))
 
 
 def test_all_zero_retrieval_weights_rejected() -> None:

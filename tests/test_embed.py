@@ -16,6 +16,7 @@ from semcode.embed import (
     Embedder,
     EmbeddingCache,
     chunk_to_text,
+    content_hash_for_text,
     embed_dataframe,
     embed_dataframe_cached,
 )
@@ -61,6 +62,11 @@ class _MockModel:
 class _BadDimensionModel(_MockModel):
     def get_sentence_embedding_dimension(self) -> int:
         return 0
+
+
+class _NonIntegerDimensionModel(_MockModel):
+    def get_sentence_embedding_dimension(self) -> str:
+        return "bad"
 
 
 class _BadShapeModel(_MockModel):
@@ -190,6 +196,11 @@ def test_chunk_to_text_rejects_non_positive_max_chars() -> None:
         chunk_to_text({"code": "def ok(): pass"}, max_chars=0)
 
 
+def test_content_hash_for_text_rejects_non_string() -> None:
+    with pytest.raises(TypeError, match="expects a string"):
+        content_hash_for_text(123)  # type: ignore[arg-type]
+
+
 def test_chunk_to_text_accepts_pandas_series(sample_df: pd.DataFrame) -> None:
     for _, row in sample_df.iterrows():
         text = chunk_to_text(row)
@@ -268,6 +279,13 @@ def test_dimension_property_rejects_invalid_model_dimension(settings: Settings) 
     emb = Embedder(settings, _model=_BadDimensionModel())
 
     with pytest.raises(ValueError, match="dimension"):
+        _ = emb.dimension
+
+
+def test_dimension_property_rejects_non_integer_model_dimension(settings: Settings) -> None:
+    emb = Embedder(settings, _model=_NonIntegerDimensionModel())
+
+    with pytest.raises(ValueError, match="dimension must be an integer"):
         _ = emb.dimension
 
 
@@ -412,6 +430,11 @@ def test_embedding_cache_rejects_invalid_dimension(settings: Settings) -> None:
         EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=0)
 
 
+def test_embedding_cache_rejects_non_integer_dimension(settings: Settings) -> None:
+    with pytest.raises(ValueError, match="dimension must be an integer"):
+        EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension="bad")  # type: ignore[arg-type]
+
+
 def test_embedding_cache_ignores_invalid_dimension_metadata(settings: Settings) -> None:
     cache_path = settings.data_dir / "embedding_cache.pkl"
     cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -484,6 +507,24 @@ def test_embedding_cache_rejects_non_finite_vector_on_set(settings: Settings) ->
 
     with pytest.raises(ValueError, match="finite"):
         cache.set("bad", vector)
+
+
+def test_embedding_cache_copies_vectors_on_set(settings: Settings) -> None:
+    cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
+    vector = np.zeros(_MOCK_DIM, dtype=np.float32)
+    cache.set("stable", vector)
+    vector[0] = 1.0
+
+    assert cache.get("stable")[0] == 0.0
+
+
+def test_embedding_cache_returns_vector_copies(settings: Settings) -> None:
+    cache = EmbeddingCache(settings, model_name=settings.embedding_model_name, dimension=_MOCK_DIM)
+    cache.set("stable", np.zeros(_MOCK_DIM, dtype=np.float32))
+    cached = cache.get("stable")
+    cached[0] = 1.0
+
+    assert cache.get("stable")[0] == 0.0
 
 
 def test_cached_embedding_counts_duplicate_content_as_hits(settings: Settings) -> None:

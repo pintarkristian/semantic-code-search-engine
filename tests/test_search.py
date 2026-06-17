@@ -221,6 +221,18 @@ class TestSearcher:
         with pytest.raises(ValueError, match="non-whitespace"):
             searcher.search("   ")
 
+    def test_search_rejects_query_above_max_length(self, tmp_path: Path) -> None:
+        settings = _settings(tmp_path, max_query_length=5)
+        searcher = Searcher(settings, embedder=_mock_embedder(settings))
+        with pytest.raises(ValueError, match="at most 5"):
+            searcher.search("x" * 6)
+
+    def test_candidates_rejects_query_above_max_length(self, tmp_path: Path) -> None:
+        settings = _settings(tmp_path, max_query_length=5)
+        searcher = Searcher(settings, embedder=_mock_embedder(settings))
+        with pytest.raises(ValueError, match="at most 5"):
+            searcher.candidates("x" * 6)
+
     def test_candidates_rejects_non_positive_k(self, tmp_path: Path) -> None:
         settings, embedder, _ = _build_index(tmp_path)
         searcher = Searcher(settings, embedder=embedder)
@@ -269,6 +281,35 @@ class TestSearcher:
         searcher = Searcher(settings, embedder=embedder)
 
         with pytest.raises(ValueError, match="chunk_id values must be unique"):
+            searcher.search("function", k=1)
+
+    def test_rejects_invalid_metadata_line_spans(self, tmp_path: Path) -> None:
+        settings, embedder, df = _build_index(tmp_path)
+        df.loc[0, "start_line"] = 10
+        df.loc[0, "end_line"] = 9
+        df.to_parquet(settings.metadata_path, index=False)
+        searcher = Searcher(settings, embedder=embedder)
+
+        with pytest.raises(ValueError, match="line spans"):
+            searcher.search("function", k=1)
+
+    def test_rejects_non_integer_metadata_line_spans(self, tmp_path: Path) -> None:
+        settings, embedder, df = _build_index(tmp_path)
+        df["start_line"] = ["not-int"] + [str(value) for value in df["start_line"].iloc[1:]]
+        df["end_line"] = [str(value) for value in df["end_line"]]
+        df.to_parquet(settings.metadata_path, index=False)
+        searcher = Searcher(settings, embedder=embedder)
+
+        with pytest.raises(ValueError, match="line spans must be integers"):
+            searcher.search("function", k=1)
+
+    def test_rejects_blank_metadata_display_fields(self, tmp_path: Path) -> None:
+        settings, embedder, df = _build_index(tmp_path)
+        df.loc[0, "file_path"] = "   "
+        df.to_parquet(settings.metadata_path, index=False)
+        searcher = Searcher(settings, embedder=embedder)
+
+        with pytest.raises(ValueError, match="file_path values"):
             searcher.search("function", k=1)
 
     def test_search_trims_query_before_rerank(self, tmp_path: Path) -> None:
@@ -530,6 +571,13 @@ class TestBM25Retriever:
         with pytest.raises(ValueError, match="missing 'corpus'"):
             BM25Retriever.load(path)
 
+    def test_load_rejects_corrupt_pickle_with_path(self, tmp_path: Path) -> None:
+        path = tmp_path / "corpus.pkl"
+        path.write_bytes(b"not-a-pickle")
+
+        with pytest.raises(ValueError, match="Failed to load BM25 corpus"):
+            BM25Retriever.load(path)
+
     def test_empty_corpus(self) -> None:
         bm25 = BM25Retriever([])
         assert bm25.search("anything", k=5) == []
@@ -555,6 +603,10 @@ class TestBM25Retriever:
     def test_rejects_non_integer_doc_ids(self) -> None:
         with pytest.raises(ValueError, match="doc_ids must be integers"):
             BM25Retriever([["alpha"]], doc_ids=["not-an-id"])  # type: ignore[list-item]
+
+    def test_rejects_string_doc_ids(self) -> None:
+        with pytest.raises(ValueError, match="list of integers"):
+            BM25Retriever([["alpha"], ["beta"]], doc_ids="12")  # type: ignore[arg-type]
 
     def test_rejects_duplicate_doc_ids(self) -> None:
         with pytest.raises(ValueError, match="doc_ids must be unique"):
@@ -637,15 +689,23 @@ class TestRRF:
         scores = [f for *_, f in fused]
         assert scores == sorted(scores, reverse=True)
 
-    def test_zero_weights_give_zero_fused(self) -> None:
+    def test_zero_weights_are_rejected(self) -> None:
         dense = [(0, 0.9)]
         bm25 = [(0, 5.0)]
-        fused = _reciprocal_rank_fusion(dense, bm25, dense_weight=0.0, bm25_weight=0.0)
-        assert all(f == 0.0 for *_, f in fused)
+        with pytest.raises(ValueError, match="positive"):
+            _reciprocal_rank_fusion(dense, bm25, dense_weight=0.0, bm25_weight=0.0)
 
     def test_rejects_non_positive_rrf_k(self) -> None:
         with pytest.raises(ValueError, match="RRF k"):
             _reciprocal_rank_fusion([(0, 0.9)], [], dense_weight=1.0, bm25_weight=0.0, k=0)
+
+    def test_rejects_negative_rrf_weights(self) -> None:
+        with pytest.raises(ValueError, match="weights"):
+            _reciprocal_rank_fusion([(0, 0.9)], [], dense_weight=-1.0, bm25_weight=0.0)
+
+    def test_rejects_all_zero_rrf_weights(self) -> None:
+        with pytest.raises(ValueError, match="positive"):
+            _reciprocal_rank_fusion([(0, 0.9)], [], dense_weight=0.0, bm25_weight=0.0)
 
 
 # ---------------------------------------------------------------------------

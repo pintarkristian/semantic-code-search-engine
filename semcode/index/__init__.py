@@ -98,7 +98,13 @@ class VectorStore:
         # dimension zero would make later load-time validation meaningless.
         if dim <= 0:
             raise ValueError("FAISS vector dimension must be positive")
-        ids = None if ids is None else np.ascontiguousarray(ids, dtype=np.int64)
+        if ids is not None:
+            raw_ids = np.asarray(ids)
+            if raw_ids.ndim != 1:
+                raise ValueError(f"Expected 1-D FAISS ids, got shape {raw_ids.shape}")
+            if not np.issubdtype(raw_ids.dtype, np.integer):
+                raise ValueError("FAISS ids must be integers")
+            ids = np.ascontiguousarray(raw_ids, dtype=np.int64)
         if ids is not None and len(ids) != n:
             raise ValueError(f"Expected {n} ids, got {len(ids)}")
         if ids is not None and len(np.unique(ids)) != len(ids):
@@ -164,9 +170,19 @@ class VectorStore:
         if self._manifest.get("id_mapped") is not True:
             raise RuntimeError("Incremental update requires an ID-mapped FAISS index.")
 
-        remove_ids = np.ascontiguousarray(remove_ids, dtype=np.int64)
+        raw_remove_ids = np.asarray(remove_ids)
+        if raw_remove_ids.ndim != 1:
+            raise ValueError(f"Expected 1-D FAISS remove ids, got shape {raw_remove_ids.shape}")
+        if not np.issubdtype(raw_remove_ids.dtype, np.integer):
+            raise ValueError("FAISS remove ids must be integers")
+        remove_ids = np.ascontiguousarray(raw_remove_ids, dtype=np.int64)
         add_vectors = np.ascontiguousarray(add_vectors, dtype=np.float32)
-        add_ids = np.ascontiguousarray(add_ids, dtype=np.int64)
+        raw_add_ids = np.asarray(add_ids)
+        if raw_add_ids.ndim != 1:
+            raise ValueError(f"Expected 1-D FAISS add ids, got shape {raw_add_ids.shape}")
+        if not np.issubdtype(raw_add_ids.dtype, np.integer):
+            raise ValueError("FAISS add ids must be integers")
+        add_ids = np.ascontiguousarray(raw_add_ids, dtype=np.int64)
 
         if add_vectors.ndim != 2:
             raise ValueError(f"Expected 2-D add_vectors, got shape {add_vectors.shape}")

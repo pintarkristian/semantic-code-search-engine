@@ -233,6 +233,44 @@ def test_train_model_rejects_invalid_training_options(tmp_path: Path) -> None:
         train_reranker_model(dataset_path, batch_size=0)
 
 
+def test_train_model_rejects_missing_dataset_path(tmp_path: Path) -> None:
+    dataset_path = tmp_path / "missing.parquet"
+
+    with pytest.raises(FileNotFoundError, match="No reranker dataset"):
+        train_reranker_model(dataset_path, _settings(tmp_path), epochs=1, batch_size=1)
+
+
+def test_train_model_rejects_non_finite_features(tmp_path: Path) -> None:
+    dataset = pd.DataFrame([{column: 0.0 for column in FEATURE_COLUMNS}])
+    dataset["label"] = [1.0]
+    dataset.loc[0, FEATURE_COLUMNS[0]] = np.nan
+    dataset_path = tmp_path / "bad.parquet"
+    dataset.to_parquet(dataset_path, index=False)
+
+    with pytest.raises(ValueError, match="feature columns"):
+        train_reranker_model(dataset_path, _settings(tmp_path), epochs=1, batch_size=1)
+
+
+def test_train_model_rejects_non_finite_labels(tmp_path: Path) -> None:
+    dataset = pd.DataFrame([{column: 0.0 for column in FEATURE_COLUMNS}])
+    dataset["label"] = [np.inf]
+    dataset_path = tmp_path / "bad-label.parquet"
+    dataset.to_parquet(dataset_path, index=False)
+
+    with pytest.raises(ValueError, match="labels"):
+        train_reranker_model(dataset_path, _settings(tmp_path), epochs=1, batch_size=1)
+
+
+def test_train_model_rejects_non_binary_labels(tmp_path: Path) -> None:
+    dataset = pd.DataFrame([{column: 0.0 for column in FEATURE_COLUMNS}])
+    dataset["label"] = [0.5]
+    dataset_path = tmp_path / "non-binary.parquet"
+    dataset.to_parquet(dataset_path, index=False)
+
+    with pytest.raises(ValueError, match="binary"):
+        train_reranker_model(dataset_path, _settings(tmp_path), epochs=1, batch_size=1)
+
+
 def test_build_model_rejects_invalid_input_dim() -> None:
     with pytest.raises(ValueError, match="input_dim"):
         build_model(0)
@@ -243,6 +281,26 @@ def test_reranker_score_rejects_blank_query(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="non-whitespace"):
         reranker.score("   ", _candidate_frame())
+
+
+def test_reranker_unavailable_without_feature_schema(tmp_path: Path) -> None:
+    model_path = tmp_path / "reranker"
+    model_path.mkdir()
+    (model_path / "saved_model.pb").write_bytes(b"placeholder")
+
+    assert ReRanker(_settings(tmp_path), model_path=model_path).available is False
+
+
+def test_reranker_falls_back_on_feature_schema_mismatch(tmp_path: Path) -> None:
+    model_path = tmp_path / "reranker"
+    model_path.mkdir()
+    (model_path / "saved_model.pb").write_bytes(b"placeholder")
+    (model_path / "feature_columns.json").write_text(json.dumps(["wrong"]), encoding="utf-8")
+    reranker = ReRanker(_settings(tmp_path), model_path=model_path)
+
+    scores = reranker.score("validate token", _candidate_frame())
+
+    np.testing.assert_allclose(scores, _candidate_frame()["fused_score"].to_numpy("float32"))
 
 
 def test_reranker_score_falls_back_on_wrong_score_count(tmp_path: Path) -> None:
@@ -300,3 +358,7 @@ def _export_inverse_fused_model(model_path: Path) -> None:
     weights[FEATURE_COLUMNS.index("fused_score"), 0] = -200.0
     model.layers[-1].set_weights([weights, np.array([0.0], dtype="float32")])
     model.export(str(model_path))
+    (model_path / "feature_columns.json").write_text(
+        json.dumps(FEATURE_COLUMNS, indent=2),
+        encoding="utf-8",
+    )

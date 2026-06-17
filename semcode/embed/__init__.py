@@ -79,6 +79,8 @@ def chunk_to_text(row: Any, max_chars: int = 2048) -> str:
 
 def content_hash_for_text(text: str) -> str:
     """Return a stable SHA-256 content hash for an embedding input string."""
+    if not isinstance(text, str):
+        raise TypeError("content_hash_for_text expects a string")
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
@@ -142,7 +144,10 @@ class Embedder:
     @property
     def dimension(self) -> int:
         """Embedding dimension of the loaded model."""
-        dimension = int(self._load_model().get_sentence_embedding_dimension())
+        try:
+            dimension = int(self._load_model().get_sentence_embedding_dimension())
+        except (TypeError, ValueError) as exc:
+            raise ValueError("embedding model dimension must be an integer") from exc
         if dimension <= 0:
             raise ValueError("embedding model dimension must be positive")
         return dimension
@@ -201,7 +206,10 @@ class EmbeddingCache:
     def __init__(self, settings: Settings, *, model_name: str, dimension: int) -> None:
         self.settings = settings
         self.model_name = model_name
-        self.dimension = int(dimension)
+        try:
+            self.dimension = int(dimension)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("dimension must be an integer") from exc
         if self.dimension <= 0:
             raise ValueError("dimension must be positive")
         self.path = embedding_cache_path(settings)
@@ -293,7 +301,8 @@ class EmbeddingCache:
             self.path.unlink()
 
     def get(self, content_hash: str) -> np.ndarray | None:
-        return self._vectors.get(content_hash)
+        vector = self._vectors.get(content_hash)
+        return None if vector is None else vector.copy()
 
     def set(self, content_hash: str, vector: np.ndarray) -> None:
         arr = np.asarray(vector, dtype=np.float32)
@@ -303,7 +312,9 @@ class EmbeddingCache:
             )
         if not np.isfinite(arr).all():
             raise ValueError("cached vector must contain only finite values")
-        self._vectors[content_hash] = arr
+        # Store our own copy so callers cannot mutate cache state by changing
+        # the array object they passed to set().
+        self._vectors[content_hash] = arr.copy()
 
 
 # ---------------------------------------------------------------------------

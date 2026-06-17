@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import math
 from pathlib import Path
 from typing import Annotated
 
@@ -59,33 +60,50 @@ class Settings(BaseSettings):
             return False
         return value
 
-    @field_validator("host")
+    @field_validator("host", mode="before")
     @classmethod
-    def _validate_host(cls, value: str) -> str:
+    def _validate_host(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("host must be a string")
         if not value.strip():
             raise ValueError("host must contain non-whitespace text")
         return value.strip()
 
-    @field_validator("log_level")
+    @field_validator("app_name", mode="before")
     @classmethod
-    def _validate_log_level(cls, value: str) -> str:
+    def _validate_app_name(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("app_name must be a string")
+        if not value.strip():
+            raise ValueError("app_name must contain non-whitespace text")
+        return value.strip()
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _validate_log_level(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("log_level must be a string")
         normalized = value.strip().upper()
         allowed = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
         if normalized not in allowed:
             raise ValueError(f"log_level must be one of: {', '.join(sorted(allowed))}")
         return normalized
 
-    @field_validator("log_format")
+    @field_validator("log_format", mode="before")
     @classmethod
-    def _validate_log_format(cls, value: str) -> str:
+    def _validate_log_format(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("log_format must be a string")
         normalized = value.strip().lower()
         if normalized not in {"pretty", "json"}:
             raise ValueError("log_format must be 'pretty' or 'json'")
         return normalized
 
-    @field_validator("embedding_device")
+    @field_validator("embedding_device", mode="before")
     @classmethod
-    def _validate_embedding_device(cls, value: str) -> str:
+    def _validate_embedding_device(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("embedding_device must be a string")
         normalized = value.strip().lower()
         if normalized not in {"cpu", "cuda"}:
             raise ValueError("embedding_device must be 'cpu' or 'cuda'")
@@ -95,6 +113,8 @@ class Settings(BaseSettings):
     def _validate_retrieval_weights(self) -> Settings:
         # These fields interact at runtime: invalid combinations can produce
         # empty or out-of-bounds rankings even though each value is valid alone.
+        if not math.isfinite(self.dense_weight) or not math.isfinite(self.bm25_weight):
+            raise ValueError("retrieval weights must be finite")
         if self.dense_weight < 0 or self.bm25_weight < 0:
             raise ValueError("retrieval weights must be non-negative")
         if self.dense_weight + self.bm25_weight <= 0:

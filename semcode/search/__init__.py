@@ -89,6 +89,10 @@ def _reciprocal_rank_fusion(
     """
     if k <= 0:
         raise ValueError("RRF k must be positive")
+    if dense_weight < 0 or bm25_weight < 0:
+        raise ValueError("RRF weights must be non-negative")
+    if dense_weight + bm25_weight <= 0:
+        raise ValueError("At least one RRF weight must be positive")
 
     dense_map: dict[int, tuple[int, float]] = {
         row_idx: (rank + 1, score) for rank, (row_idx, score) in enumerate(dense_hits)
@@ -174,6 +178,16 @@ class Searcher:
             raise ValueError(f"Metadata is missing required columns: {missing_columns}")
         if meta["chunk_id"].astype(str).duplicated().any():
             raise ValueError("Metadata chunk_id values must be unique.")
+        for column in ("file_path", "symbol_name", "symbol_type", "language"):
+            if meta[column].astype(str).str.strip().eq("").any():
+                raise ValueError(f"Metadata {column} values must contain non-whitespace text.")
+        try:
+            start_lines = meta["start_line"].astype(int)
+            end_lines = meta["end_line"].astype(int)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Metadata line spans must be integers.") from exc
+        if (start_lines < 1).any() or (end_lines < start_lines).any():
+            raise ValueError("Metadata line spans must be 1-indexed and ordered.")
 
         bm25_path = bm25_corpus_path(self.settings.faiss_index_path)
         if bm25_path.exists():
@@ -211,6 +225,10 @@ class Searcher:
         query = query.strip()
         if not query:
             raise ValueError("query must contain non-whitespace text")
+        if len(query) > self.settings.max_query_length:
+            raise ValueError(
+                f"query must be at most {self.settings.max_query_length} characters"
+            )
         if k is not None and k <= 0:
             raise ValueError("k must be positive")
         if k is not None and k > self.settings.max_search_k:
@@ -286,6 +304,12 @@ class Searcher:
         query = query.strip()
         if not query:
             raise ValueError("query must contain non-whitespace text")
+        # Match API validation for direct Python callers and avoid embedding
+        # unexpectedly large request bodies.
+        if len(query) > self.settings.max_query_length:
+            raise ValueError(
+                f"query must be at most {self.settings.max_query_length} characters"
+            )
         k = k if k is not None else self.settings.top_k_return
         if k <= 0:
             raise ValueError("k must be positive")

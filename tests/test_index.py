@@ -153,6 +153,20 @@ def test_build_rejects_duplicate_faiss_ids(tmp_path: Path) -> None:
         store.build(vecs, ids=np.asarray([1, 1, 2], dtype=np.int64))
 
 
+def test_build_rejects_non_integer_faiss_ids(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    with pytest.raises(ValueError, match="ids must be integers"):
+        store.build(vecs, ids=np.asarray([1.0, 2.0, 3.0], dtype=np.float32))
+
+
+def test_build_rejects_non_1d_faiss_ids(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    with pytest.raises(ValueError, match="1-D FAISS ids"):
+        store.build(vecs, ids=np.asarray([[1], [2], [3]], dtype=np.int64))
+
+
 # ---------------------------------------------------------------------------
 # VectorStore — search
 # ---------------------------------------------------------------------------
@@ -481,6 +495,30 @@ def test_update_rejects_duplicate_add_ids(tmp_path: Path) -> None:
         )
 
 
+def test_update_rejects_non_integer_add_ids(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs, ids=np.arange(3, dtype=np.int64))
+    with pytest.raises(ValueError, match="add ids must be integers"):
+        store.update(
+            remove_ids=np.asarray([], dtype=np.int64),
+            add_vectors=_unit_vectors(1, seed=1),
+            add_ids=np.asarray([3.5], dtype=np.float32),
+        )
+
+
+def test_update_rejects_non_1d_add_ids(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs, ids=np.arange(3, dtype=np.int64))
+    with pytest.raises(ValueError, match="1-D FAISS add ids"):
+        store.update(
+            remove_ids=np.asarray([], dtype=np.int64),
+            add_vectors=_unit_vectors(1, seed=1),
+            add_ids=np.asarray([[3]], dtype=np.int64),
+        )
+
+
 def test_update_rejects_duplicate_remove_ids(tmp_path: Path) -> None:
     vecs = _unit_vectors(3)
     store = VectorStore(_settings(tmp_path))
@@ -488,6 +526,30 @@ def test_update_rejects_duplicate_remove_ids(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="remove ids must be unique"):
         store.update(
             remove_ids=np.asarray([1, 1], dtype=np.int64),
+            add_vectors=np.zeros((0, MOCK_DIM), dtype=np.float32),
+            add_ids=np.asarray([], dtype=np.int64),
+        )
+
+
+def test_update_rejects_non_integer_remove_ids(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs, ids=np.arange(3, dtype=np.int64))
+    with pytest.raises(ValueError, match="remove ids must be integers"):
+        store.update(
+            remove_ids=np.asarray([1.5], dtype=np.float32),
+            add_vectors=np.zeros((0, MOCK_DIM), dtype=np.float32),
+            add_ids=np.asarray([], dtype=np.int64),
+        )
+
+
+def test_update_rejects_non_1d_remove_ids(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs, ids=np.arange(3, dtype=np.int64))
+    with pytest.raises(ValueError, match="1-D FAISS remove ids"):
+        store.update(
+            remove_ids=np.asarray([[1]], dtype=np.int64),
             add_vectors=np.zeros((0, MOCK_DIM), dtype=np.float32),
             add_ids=np.asarray([], dtype=np.int64),
         )

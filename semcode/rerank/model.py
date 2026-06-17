@@ -32,6 +32,14 @@ def _split_xy(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.
 
     x = df[FEATURE_COLUMNS].astype("float32").to_numpy()
     y = df["label"].astype("float32").to_numpy()
+    # Training failures inside TensorFlow are harder to diagnose than a small
+    # boundary check here, so validate exported feature matrices up front.
+    if not np.isfinite(x).all():
+        raise ValueError("Reranker feature columns must contain only finite values.")
+    if not np.isfinite(y).all():
+        raise ValueError("Reranker labels must contain only finite values.")
+    if not np.isin(y, [0.0, 1.0]).all():
+        raise ValueError("Reranker labels must be binary 0.0 or 1.0 values.")
 
     rng = np.random.default_rng(42)
     pos_idx = rng.permutation(np.flatnonzero(y == 1.0))
@@ -87,6 +95,8 @@ def train_reranker_model(
     if batch_size <= 0:
         raise ValueError("batch_size must be positive")
     settings = settings or get_settings()
+    if not dataset_path.exists():
+        raise FileNotFoundError(f"No reranker dataset at {dataset_path}")
     df = pd.read_parquet(dataset_path)
     x_train, y_train, x_val, y_val = _split_xy(df)
     if not np.any(y_train == 1.0) or not np.any(y_train == 0.0):
@@ -158,13 +168,21 @@ class ReRanker:
     @property
     def available(self) -> bool:
         if self._available is None:
-            self._available = (self.model_path / "saved_model.pb").exists()
+            # The SavedModel and feature schema are a pair; loading only the
+            # model can silently score the wrong feature order after upgrades.
+            self._available = (self.model_path / "saved_model.pb").exists() and (
+                self.model_path / "feature_columns.json"
+            ).exists()
         return self._available
 
     def _ensure_loaded(self) -> bool:
         if not self.available:
             return False
         if self._model is None:
+            schema_path = self.model_path / "feature_columns.json"
+            saved_columns = json.loads(schema_path.read_text(encoding="utf-8"))
+            if saved_columns != FEATURE_COLUMNS:
+                raise ValueError("Reranker feature schema does not match current feature columns.")
             tf = _import_tf()
             self._model = tf.saved_model.load(str(self.model_path))
             self._signature = self._model.signatures["serving_default"]
@@ -179,10 +197,12 @@ class ReRanker:
         fallback = candidates.get("fused_score", pd.Series([0.0] * len(candidates))).to_numpy(
             dtype="float32"
         )
-        if candidates.empty or not self._ensure_loaded():
+        if candidates.empty:
             return fallback
 
         try:
+            if not self._ensure_loaded():
+                return fallback
             tf = _import_tf()
             features = build_features(query, candidates).to_numpy(dtype="float32")
             if self._signature is None:
