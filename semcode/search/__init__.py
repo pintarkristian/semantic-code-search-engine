@@ -87,6 +87,8 @@ def _reciprocal_rank_fusion(
         fused_score descending.  Documents appearing in only one list get
         a zero contribution from the missing source.
     """
+    if not isinstance(k, int):
+        raise TypeError("RRF k must be an integer")
     if k <= 0:
         raise ValueError("RRF k must be positive")
     if dense_weight < 0 or bm25_weight < 0:
