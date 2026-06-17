@@ -23,6 +23,8 @@ def load_labels(path: Path) -> dict[str, list[str]]:
       {"query text": ["chunk_id", ...]}
       [{"query": "query text", "relevant_chunk_ids": ["chunk_id", ...]}, ...]
     """
+    if not isinstance(path, Path):
+        raise TypeError("labels path must be a pathlib.Path")
     try:
         raw: Any = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
