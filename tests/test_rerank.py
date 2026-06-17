@@ -77,6 +77,16 @@ def test_feature_builder_columns_are_stable() -> None:
     assert features["query_tokens_in_docstring"].tolist() == [1.0, 0.0]
 
 
+def test_feature_builder_trims_language_values() -> None:
+    candidates = _candidate_frame()
+    candidates.loc[0, "language"] = " Python "
+
+    features = build_features("validate token", candidates)
+
+    assert features.loc[0, "lang_python"] == 1.0
+    assert features.loc[0, "lang_other"] == 0.0
+
+
 def test_feature_builder_rejects_blank_query() -> None:
     with pytest.raises(ValueError, match="query must contain"):
         build_features("   ", _candidate_frame())
@@ -90,6 +100,15 @@ def test_feature_builder_rejects_non_finite_scores() -> None:
         build_features("validate token", candidates)
 
 
+def test_feature_builder_rejects_non_numeric_scores() -> None:
+    candidates = _candidate_frame()
+    candidates["bm25_score"] = candidates["bm25_score"].astype("object")
+    candidates.loc[0, "bm25_score"] = "bad"
+
+    with pytest.raises(ValueError, match="bm25_score must be numeric"):
+        build_features("validate token", candidates)
+
+
 def test_add_labels_requires_chunk_id() -> None:
     candidates = _candidate_frame().drop(columns=["chunk_id"])
 
@@ -100,6 +119,11 @@ def test_add_labels_requires_chunk_id() -> None:
 def test_add_labels_rejects_string_relevant_ids() -> None:
     with pytest.raises(TypeError, match="not a string"):
         add_labels("validate token", _candidate_frame(), "chunk-1")
+
+
+def test_add_labels_rejects_non_string_relevant_ids() -> None:
+    with pytest.raises(TypeError, match="only strings"):
+        add_labels("validate token", _candidate_frame(), ["a", 123])  # type: ignore[list-item]
 
 
 def test_add_labels_rejects_blank_relevant_ids() -> None:
@@ -133,6 +157,14 @@ def test_load_labels_rejects_blank_object_relevant_id(tmp_path: Path) -> None:
     labels_path.write_text(json.dumps({"validate token": "   "}), encoding="utf-8")
 
     with pytest.raises(ValueError, match="chunk IDs must contain"):
+        load_labels(labels_path)
+
+
+def test_load_labels_rejects_non_string_chunk_ids(tmp_path: Path) -> None:
+    labels_path = tmp_path / "labels.json"
+    labels_path.write_text(json.dumps({"validate token": [123]}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="chunk IDs must be strings"):
         load_labels(labels_path)
 
 
@@ -193,6 +225,17 @@ def test_load_labels_rejects_blank_queries(tmp_path: Path) -> None:
     labels_path.write_text(json.dumps({"   ": ["chunk-1"]}), encoding="utf-8")
 
     with pytest.raises(ValueError, match="Label queries"):
+        load_labels(labels_path)
+
+
+def test_load_labels_rejects_non_string_list_query(tmp_path: Path) -> None:
+    labels_path = tmp_path / "labels.json"
+    labels_path.write_text(
+        json.dumps([{"query": 123, "relevant_chunk_ids": ["chunk-1"]}]),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Label queries must be strings"):
         load_labels(labels_path)
 
 
@@ -283,6 +326,14 @@ def test_reranker_score_rejects_blank_query(tmp_path: Path) -> None:
         reranker.score("   ", _candidate_frame())
 
 
+def test_reranker_fallback_replaces_non_finite_scores(tmp_path: Path) -> None:
+    candidates = _candidate_frame()
+    candidates.loc[0, "fused_score"] = np.nan
+    scores = ReRanker(_settings(tmp_path)).score("validate token", candidates)
+
+    np.testing.assert_allclose(scores, np.zeros(len(candidates), dtype="float32"))
+
+
 def test_reranker_unavailable_without_feature_schema(tmp_path: Path) -> None:
     model_path = tmp_path / "reranker"
     model_path.mkdir()
@@ -307,6 +358,21 @@ def test_reranker_score_falls_back_on_wrong_score_count(tmp_path: Path) -> None:
     class _BadSignature:
         def __call__(self, features: Any) -> dict[str, np.ndarray]:
             return {"scores": np.asarray([[0.5]], dtype="float32")}
+
+    reranker = ReRanker(_settings(tmp_path))
+    reranker._available = True
+    reranker._model = object()
+    reranker._signature = _BadSignature()
+
+    scores = reranker.score("validate token", _candidate_frame())
+
+    np.testing.assert_allclose(scores, _candidate_frame()["fused_score"].to_numpy("float32"))
+
+
+def test_reranker_score_falls_back_on_non_finite_scores(tmp_path: Path) -> None:
+    class _BadSignature:
+        def __call__(self, features: Any) -> dict[str, np.ndarray]:
+            return {"scores": np.asarray([[np.nan], [0.5]], dtype="float32")}
 
     reranker = ReRanker(_settings(tmp_path))
     reranker._available = True

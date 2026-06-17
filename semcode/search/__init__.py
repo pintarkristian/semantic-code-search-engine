@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from semcode.config import Settings, get_settings
 from semcode.embed import Embedder
@@ -59,6 +59,22 @@ class SearchResult(BaseModel):
     end_line: int
     snippet: str
 
+    @model_validator(mode="after")
+    def _validate_line_span(self) -> SearchResult:
+        if self.rank <= 0:
+            raise ValueError("SearchResult rank must be positive")
+        for field_name in ("score", "dense_score", "bm25_score", "fused_score"):
+            if not np.isfinite(float(getattr(self, field_name))):
+                raise ValueError(f"SearchResult {field_name} must be finite")
+        if self.rerank_score is not None and not np.isfinite(float(self.rerank_score)):
+            raise ValueError("SearchResult rerank_score must be finite")
+        if self.start_line < 1 or self.end_line < self.start_line:
+            raise ValueError("SearchResult line span must be 1-indexed and ordered")
+        for field_name in ("file_path", "symbol_name", "symbol_type", "language"):
+            if not str(getattr(self, field_name)).strip():
+                raise ValueError(f"SearchResult {field_name} must contain non-whitespace text")
+        return self
+
 
 # ---------------------------------------------------------------------------
 # Reciprocal Rank Fusion
@@ -87,8 +103,14 @@ def _reciprocal_rank_fusion(
         fused_score descending.  Documents appearing in only one list get
         a zero contribution from the missing source.
     """
+    if not isinstance(k, int):
+        raise TypeError("RRF k must be an integer")
     if k <= 0:
         raise ValueError("RRF k must be positive")
+    if not isinstance(dense_weight, int | float) or not isinstance(bm25_weight, int | float):
+        raise TypeError("RRF weights must be numeric")
+    if not np.isfinite(dense_weight) or not np.isfinite(bm25_weight):
+        raise ValueError("RRF weights must be finite")
     if dense_weight < 0 or bm25_weight < 0:
         raise ValueError("RRF weights must be non-negative")
     if dense_weight + bm25_weight <= 0:
@@ -163,6 +185,10 @@ class Searcher:
         store.load(expected_dim=self.embedder.dimension)
 
         meta = pd.read_parquet(meta_path)
+        if len(meta) != store.ntotal:
+            raise ValueError(
+                f"Metadata row count {len(meta)} does not match FAISS index size {store.ntotal}."
+            )
         required_columns = {
             "chunk_id",
             "file_path",
@@ -196,6 +222,10 @@ class Searcher:
             log.warning("BM25 corpus not found, rebuilding from metadata", path=str(bm25_path))
             bm25 = BM25Retriever.from_dataframe(meta)
             bm25.save(bm25_path)
+        if len(bm25.doc_ids) != len(meta):
+            raise ValueError(
+                f"BM25 corpus document count {len(bm25.doc_ids)} does not match metadata rows {len(meta)}."
+            )
 
         self._store = store
         self._meta = meta
@@ -229,6 +259,8 @@ class Searcher:
             raise ValueError(
                 f"query must be at most {self.settings.max_query_length} characters"
             )
+        if k is not None and not isinstance(k, int):
+            raise TypeError("k must be an integer")
         if k is not None and k <= 0:
             raise ValueError("k must be positive")
         if k is not None and k > self.settings.max_search_k:
@@ -311,6 +343,8 @@ class Searcher:
                 f"query must be at most {self.settings.max_query_length} characters"
             )
         k = k if k is not None else self.settings.top_k_return
+        if not isinstance(k, int):
+            raise TypeError("k must be an integer")
         if k <= 0:
             raise ValueError("k must be positive")
         # Keep direct Python callers under the same bound as the HTTP surface.
@@ -363,6 +397,8 @@ class Searcher:
 
 def _make_snippet(code: str, max_lines: int) -> str:
     """Return the first max_lines non-empty lines of code."""
+    if not isinstance(max_lines, int):
+        raise TypeError("max_lines must be an integer")
     if max_lines <= 0:
         raise ValueError("max_lines must be positive")
     lines = code.splitlines()

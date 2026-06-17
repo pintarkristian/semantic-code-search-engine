@@ -228,7 +228,7 @@ class VectorStore:
         faiss.write_index(self._index, str(index_path))
 
         manifest_path = index_path.with_suffix(".json")
-        manifest_path.write_text(json.dumps(self._manifest, indent=2))
+        manifest_path.write_text(json.dumps(self._manifest, indent=2), encoding="utf-8")
         log.info("saved index", path=str(index_path))
 
     def load(self, *, expected_dim: int | None = None) -> None:
@@ -265,6 +265,10 @@ class VectorStore:
             inner = faiss.downcast_index(self._index.index)
             if isinstance(inner, faiss.IndexIVFFlat):
                 inner.nprobe = _IVF_NPROBE
+        if int(self._index.ntotal) != int(manifest["chunk_count"]):
+            raise ManifestMismatchError(
+                "Index manifest chunk_count does not match FAISS index size."
+            )
         self._manifest = manifest
         log.info(
             "loaded index",
@@ -286,6 +290,12 @@ class VectorStore:
         saved_chunks = manifest.get("chunk_count")
         if not isinstance(saved_chunks, int) or saved_chunks < 0:
             raise ManifestMismatchError("Index manifest chunk_count must be a non-negative integer.")
+        index_type = manifest.get("index_type")
+        if index_type not in {"flat", "ivf"}:
+            raise ManifestMismatchError("Index manifest index_type must be 'flat' or 'ivf'.")
+        id_mapped = manifest.get("id_mapped", False)
+        if not isinstance(id_mapped, bool):
+            raise ManifestMismatchError("Index manifest id_mapped must be a boolean.")
         if expected_dim is not None:
             if saved_dim != expected_dim:
                 raise ManifestMismatchError(
@@ -311,6 +321,8 @@ class VectorStore:
         """
         if self._index is None:
             raise RuntimeError("Index not built or loaded. Call build() or load() first.")
+        if not isinstance(k, int):
+            raise TypeError("k must be an integer")
         if k <= 0:
             raise ValueError("k must be positive")
 

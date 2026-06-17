@@ -32,7 +32,10 @@ def _tokens(text: object) -> set[str]:
 
 
 def _numeric_feature(row: pd.Series, column: str) -> float:
-    value = float(row.get(column, 0.0) or 0.0)
+    try:
+        value = float(row.get(column, 0.0) or 0.0)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{column} must be numeric") from exc
     if not math.isfinite(value):
         raise ValueError(f"{column} must be finite")
     return value
@@ -56,7 +59,7 @@ def build_features(query: str, candidates: pd.DataFrame) -> pd.DataFrame:
         symbol_tokens = _tokens(row.get("symbol_name", ""))
         code_tokens = _tokens(row.get("code", ""))
         doc_tokens = _tokens(row.get("docstring", ""))
-        language = str(row.get("language", "") or "").lower()
+        language = str(row.get("language", "") or "").strip().lower()
 
         symbol_overlap = len(query_tokens & symbol_tokens)
         docstring_hit = 1.0 if query_tokens and bool(query_tokens & doc_tokens) else 0.0
@@ -90,7 +93,10 @@ def add_labels(
         raise ValueError("candidates must include a chunk_id column")
     if isinstance(relevant_chunk_ids, str):
         raise TypeError("relevant_chunk_ids must be an iterable of chunk ID strings, not a string")
-    normalized_relevant = [str(chunk_id).strip() for chunk_id in relevant_chunk_ids]
+    relevant_values = list(relevant_chunk_ids)
+    if any(not isinstance(chunk_id, str) for chunk_id in relevant_values):
+        raise TypeError("relevant_chunk_ids must contain only strings")
+    normalized_relevant = [chunk_id.strip() for chunk_id in relevant_values]
     if any(not chunk_id for chunk_id in normalized_relevant):
         raise ValueError("relevant_chunk_ids must contain non-whitespace text")
     if len(set(normalized_relevant)) != len(normalized_relevant):

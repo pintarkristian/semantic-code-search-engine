@@ -321,9 +321,15 @@ def create_app(
                 df = pd.read_parquet(app_settings.metadata_path)
                 chunk_count = int(len(df))
                 if "language" in df.columns:
+                    # Stats are user-facing; ignore blank language metadata
+                    # instead of surfacing an empty-string bucket.
+                    languages = df["language"].astype(str).str.strip()
                     language_breakdown = {
                         str(lang): int(count)
-                        for lang, count in df["language"].value_counts().sort_index().items()
+                        for lang, count in languages[languages != ""]
+                        .value_counts()
+                        .sort_index()
+                        .items()
                     }
             except Exception as exc:
                 log.warning("failed to read metadata for stats", error=str(exc))
@@ -357,7 +363,8 @@ def _install_observability_middleware(app: FastAPI, settings: Settings) -> None:
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next):  # type: ignore[no-untyped-def]
         start = time.perf_counter()
-        request_id = request.headers.get("x-request-id") or uuid.uuid4().hex
+        header_request_id = (request.headers.get("x-request-id") or "").strip()
+        request_id = header_request_id or uuid.uuid4().hex
         request.state.request_id = request_id
         status_code = 500
         response: Response

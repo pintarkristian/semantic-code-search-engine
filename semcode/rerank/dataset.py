@@ -62,6 +62,8 @@ def load_labels(path: Path) -> dict[str, list[str]]:
 def _label_query_text(value: object) -> str:
     # Labels are keyed by the exact query text used for candidate retrieval, so
     # normalize once here instead of letting dict/list label formats diverge.
+    if not isinstance(value, str):
+        raise ValueError("Label queries must be strings.")
     query = str(value).strip()
     if not query:
         raise ValueError("Label queries must contain non-whitespace text.")
@@ -75,6 +77,8 @@ def _label_chunk_ids(value: object, *, message: str) -> list[str]:
         raw_chunk_ids = value
     else:
         raise ValueError(message)
+    if any(not isinstance(chunk_id, str) for chunk_id in raw_chunk_ids):
+        raise ValueError("Label chunk IDs must be strings.")
     chunk_ids = [str(chunk_id).strip() for chunk_id in raw_chunk_ids]
     if not chunk_ids:
         raise ValueError("Label entries must include at least one relevant chunk ID.")

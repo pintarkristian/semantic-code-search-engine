@@ -210,6 +210,14 @@ def test_search_rejects_non_positive_k(tmp_path: Path) -> None:
         store.search(vecs[0], k=0)
 
 
+def test_search_rejects_non_integer_k(tmp_path: Path) -> None:
+    vecs = _unit_vectors(3)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+    with pytest.raises(TypeError, match="k must be an integer"):
+        store.search(vecs[0], k="1")  # type: ignore[arg-type]
+
+
 def test_search_scores_descending(tmp_path: Path) -> None:
     vecs = _unit_vectors(15)
     store = VectorStore(_settings(tmp_path))
@@ -431,6 +439,51 @@ def test_load_rejects_invalid_manifest_chunk_count(tmp_path: Path) -> None:
 
     store2 = VectorStore(s)
     with pytest.raises(ManifestMismatchError, match="chunk_count"):
+        store2.load()
+
+
+def test_load_rejects_manifest_chunk_count_mismatch(tmp_path: Path) -> None:
+    vecs = _unit_vectors(5)
+    s = _settings(tmp_path)
+    store = VectorStore(s)
+    store.build(vecs)
+    store.save()
+    manifest_path = s.faiss_index_path.with_suffix(".json")
+    manifest = manifest_path.read_text(encoding="utf-8").replace('"chunk_count": 5', '"chunk_count": 4')
+    manifest_path.write_text(manifest, encoding="utf-8")
+
+    store2 = VectorStore(s)
+    with pytest.raises(ManifestMismatchError, match="chunk_count"):
+        store2.load()
+
+
+def test_load_rejects_invalid_manifest_index_type(tmp_path: Path) -> None:
+    vecs = _unit_vectors(5)
+    s = _settings(tmp_path)
+    store = VectorStore(s)
+    store.build(vecs)
+    store.save()
+    manifest_path = s.faiss_index_path.with_suffix(".json")
+    manifest = manifest_path.read_text(encoding="utf-8").replace('"index_type": "flat"', '"index_type": "bad"')
+    manifest_path.write_text(manifest, encoding="utf-8")
+
+    store2 = VectorStore(s)
+    with pytest.raises(ManifestMismatchError, match="index_type"):
+        store2.load()
+
+
+def test_load_rejects_invalid_manifest_id_mapped(tmp_path: Path) -> None:
+    vecs = _unit_vectors(5)
+    s = _settings(tmp_path)
+    store = VectorStore(s)
+    store.build(vecs)
+    store.save()
+    manifest_path = s.faiss_index_path.with_suffix(".json")
+    manifest = manifest_path.read_text(encoding="utf-8").replace('"id_mapped": false', '"id_mapped": "no"')
+    manifest_path.write_text(manifest, encoding="utf-8")
+
+    store2 = VectorStore(s)
+    with pytest.raises(ManifestMismatchError, match="id_mapped"):
         store2.load()
 
 

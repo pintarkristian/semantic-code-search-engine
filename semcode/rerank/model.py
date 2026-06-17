@@ -197,6 +197,9 @@ class ReRanker:
         fallback = candidates.get("fused_score", pd.Series([0.0] * len(candidates))).to_numpy(
             dtype="float32"
         )
+        if not np.isfinite(fallback).all():
+            log.warning("reranker fallback scores were non-finite; using zeros")
+            fallback = np.zeros(len(candidates), dtype="float32")
         if candidates.empty:
             return fallback
 
@@ -216,6 +219,8 @@ class ReRanker:
                 raise ValueError(
                     f"Expected {len(candidates)} reranker scores, got {len(scores)}"
                 )
+            if not np.isfinite(scores).all():
+                raise ValueError("reranker scores must be finite")
             return np.clip(scores, 0.0, 1.0)
         except Exception as exc:  # pragma: no cover - defensive production fallback
             log.warning("reranker failed; falling back to fused score", error=str(exc))

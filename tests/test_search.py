@@ -117,6 +117,77 @@ class TestSearchResult:
         )
         assert isinstance(r.score, float)
 
+    def test_rejects_invalid_line_span(self) -> None:
+        with pytest.raises(ValueError, match="line span"):
+            SearchResult(
+                rank=1,
+                score=0.5,
+                file_path="src/auth.py",
+                symbol_name="validate",
+                symbol_type="function",
+                language="python",
+                start_line=10,
+                end_line=9,
+                snippet="def validate(): pass",
+            )
+
+    def test_rejects_blank_display_fields(self) -> None:
+        with pytest.raises(ValueError, match="file_path"):
+            SearchResult(
+                rank=1,
+                score=0.5,
+                file_path="   ",
+                symbol_name="validate",
+                symbol_type="function",
+                language="python",
+                start_line=1,
+                end_line=2,
+                snippet="def validate(): pass",
+            )
+
+    def test_rejects_non_positive_rank(self) -> None:
+        with pytest.raises(ValueError, match="rank must be positive"):
+            SearchResult(
+                rank=0,
+                score=0.5,
+                file_path="src/auth.py",
+                symbol_name="validate",
+                symbol_type="function",
+                language="python",
+                start_line=1,
+                end_line=2,
+                snippet="def validate(): pass",
+            )
+
+    def test_rejects_non_finite_score(self) -> None:
+        with pytest.raises(ValueError, match="score must be finite"):
+            SearchResult(
+                rank=1,
+                score=float("nan"),
+                file_path="src/auth.py",
+                symbol_name="validate",
+                symbol_type="function",
+                language="python",
+                start_line=1,
+                end_line=2,
+                snippet="def validate(): pass",
+            )
+
+    def test_rejects_non_finite_rerank_score(self) -> None:
+        with pytest.raises(ValueError, match="rerank_score must be finite"):
+            SearchResult(
+                rank=1,
+                score=0.5,
+                rerank_score=float("inf"),
+                file_path="src/auth.py",
+                symbol_name="validate",
+                symbol_type="function",
+                language="python",
+                start_line=1,
+                end_line=2,
+                snippet="def validate(): pass",
+            )
+
 
 # ---------------------------------------------------------------------------
 # Snippet helper
@@ -145,6 +216,10 @@ class TestMakeSnippet:
     def test_rejects_non_positive_max_lines(self) -> None:
         with pytest.raises(ValueError, match="max_lines"):
             _make_snippet("def f(): pass", max_lines=0)
+
+    def test_rejects_non_integer_max_lines(self) -> None:
+        with pytest.raises(TypeError, match="max_lines must be an integer"):
+            _make_snippet("def f(): pass", max_lines="6")  # type: ignore[arg-type]
 
     def test_short_code_unchanged(self) -> None:
         code = "x = 1\ny = 2"
@@ -239,11 +314,23 @@ class TestSearcher:
         with pytest.raises(ValueError, match="k must be positive"):
             searcher.candidates("function", k=0)
 
+    def test_candidates_rejects_non_integer_k(self, tmp_path: Path) -> None:
+        settings = _settings(tmp_path)
+        searcher = Searcher(settings, embedder=_mock_embedder(settings))
+        with pytest.raises(TypeError, match="k must be an integer"):
+            searcher.candidates("function", k="1")  # type: ignore[arg-type]
+
     def test_search_rejects_non_positive_k(self, tmp_path: Path) -> None:
         settings, embedder, _ = _build_index(tmp_path)
         searcher = Searcher(settings, embedder=embedder)
         with pytest.raises(ValueError, match="k must be positive"):
             searcher.search("function", k=0)
+
+    def test_search_rejects_non_integer_k(self, tmp_path: Path) -> None:
+        settings = _settings(tmp_path)
+        searcher = Searcher(settings, embedder=_mock_embedder(settings))
+        with pytest.raises(TypeError, match="k must be an integer"):
+            searcher.search("function", k="1")  # type: ignore[arg-type]
 
     def test_candidates_rejects_k_above_max_search_k(self, tmp_path: Path) -> None:
         settings = _settings(tmp_path, max_search_k=5)
@@ -267,11 +354,21 @@ class TestSearcher:
             searcher.search("function", k=1)
 
     def test_rejects_bm25_ids_missing_from_metadata(self, tmp_path: Path) -> None:
-        settings, embedder, _ = _build_index(tmp_path)
-        BM25Retriever([["function"]], doc_ids=[999]).save(bm25_corpus_path(settings.faiss_index_path))
+        settings, embedder, df = _build_index(tmp_path)
+        corpus = [["function"] for _ in range(len(df))]
+        doc_ids = [999] + list(range(1, len(df)))
+        BM25Retriever(corpus, doc_ids=doc_ids).save(bm25_corpus_path(settings.faiss_index_path))
         searcher = Searcher(settings, embedder=embedder)
 
         with pytest.raises(ValueError, match="not present in metadata"):
+            searcher.search("function", k=1)
+
+    def test_rejects_bm25_count_mismatch(self, tmp_path: Path) -> None:
+        settings, embedder, _ = _build_index(tmp_path)
+        BM25Retriever([["function"]], doc_ids=[0]).save(bm25_corpus_path(settings.faiss_index_path))
+        searcher = Searcher(settings, embedder=embedder)
+
+        with pytest.raises(ValueError, match="document count"):
             searcher.search("function", k=1)
 
     def test_rejects_duplicate_metadata_chunk_ids(self, tmp_path: Path) -> None:
@@ -310,6 +407,14 @@ class TestSearcher:
         searcher = Searcher(settings, embedder=embedder)
 
         with pytest.raises(ValueError, match="file_path values"):
+            searcher.search("function", k=1)
+
+    def test_rejects_metadata_index_size_mismatch(self, tmp_path: Path) -> None:
+        settings, embedder, df = _build_index(tmp_path)
+        df.iloc[:-1].to_parquet(settings.metadata_path, index=False)
+        searcher = Searcher(settings, embedder=embedder)
+
+        with pytest.raises(ValueError, match="does not match FAISS index size"):
             searcher.search("function", k=1)
 
     def test_search_trims_query_before_rerank(self, tmp_path: Path) -> None:
@@ -527,6 +632,10 @@ class TestTokenize:
     def test_empty_string(self) -> None:
         assert tokenize("") == []
 
+    def test_rejects_non_string_text(self) -> None:
+        with pytest.raises(TypeError, match="expects a string"):
+            tokenize(123)  # type: ignore[arg-type]
+
     def test_numbers_kept(self) -> None:
         tokens = tokenize("encode_base64")
         assert "encode" in tokens
@@ -591,6 +700,11 @@ class TestBM25Retriever:
     def test_non_positive_k_returns_no_hits(self) -> None:
         bm25 = BM25Retriever([["alpha"], ["beta"]])
         assert bm25.search("alpha", k=0) == []
+
+    def test_rejects_non_integer_k(self) -> None:
+        bm25 = BM25Retriever([["alpha"], ["beta"]])
+        with pytest.raises(TypeError, match="k must be an integer"):
+            bm25.search("alpha", k="1")  # type: ignore[arg-type]
 
     def test_rejects_mismatched_doc_ids(self) -> None:
         with pytest.raises(ValueError, match="doc_ids"):
@@ -699,9 +813,37 @@ class TestRRF:
         with pytest.raises(ValueError, match="RRF k"):
             _reciprocal_rank_fusion([(0, 0.9)], [], dense_weight=1.0, bm25_weight=0.0, k=0)
 
+    def test_rejects_non_integer_rrf_k(self) -> None:
+        with pytest.raises(TypeError, match="RRF k must be an integer"):
+            _reciprocal_rank_fusion(
+                [(0, 0.9)],
+                [],
+                dense_weight=1.0,
+                bm25_weight=0.0,
+                k="60",  # type: ignore[arg-type]
+            )
+
     def test_rejects_negative_rrf_weights(self) -> None:
         with pytest.raises(ValueError, match="weights"):
             _reciprocal_rank_fusion([(0, 0.9)], [], dense_weight=-1.0, bm25_weight=0.0)
+
+    def test_rejects_non_numeric_rrf_weights(self) -> None:
+        with pytest.raises(TypeError, match="weights must be numeric"):
+            _reciprocal_rank_fusion(
+                [(0, 0.9)],
+                [],
+                dense_weight="1.0",  # type: ignore[arg-type]
+                bm25_weight=0.0,
+            )
+
+    def test_rejects_non_finite_rrf_weights(self) -> None:
+        with pytest.raises(ValueError, match="weights must be finite"):
+            _reciprocal_rank_fusion(
+                [(0, 0.9)],
+                [],
+                dense_weight=float("nan"),
+                bm25_weight=0.0,
+            )
 
     def test_rejects_all_zero_rrf_weights(self) -> None:
         with pytest.raises(ValueError, match="positive"):
