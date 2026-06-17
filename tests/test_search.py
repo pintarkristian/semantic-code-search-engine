@@ -734,6 +734,15 @@ class TestRRF:
         with pytest.raises(ValueError, match="weights"):
             _reciprocal_rank_fusion([(0, 0.9)], [], dense_weight=-1.0, bm25_weight=0.0)
 
+    def test_rejects_non_numeric_rrf_weights(self) -> None:
+        with pytest.raises(TypeError, match="weights must be numeric"):
+            _reciprocal_rank_fusion(
+                [(0, 0.9)],
+                [],
+                dense_weight="1.0",  # type: ignore[arg-type]
+                bm25_weight=0.0,
+            )
+
     def test_rejects_all_zero_rrf_weights(self) -> None:
         with pytest.raises(ValueError, match="positive"):
             _reciprocal_rank_fusion([(0, 0.9)], [], dense_weight=0.0, bm25_weight=0.0)
