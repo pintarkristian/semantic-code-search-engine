@@ -309,6 +309,8 @@ class EmbeddingCache:
             self.path.unlink()
 
     def get(self, content_hash: str) -> np.ndarray | None:
+        if not isinstance(content_hash, str):
+            raise TypeError("content_hash must be a string")
         vector = self._vectors.get(content_hash)
         return None if vector is None else vector.copy()
 
