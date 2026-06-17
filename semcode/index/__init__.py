@@ -228,7 +228,7 @@ class VectorStore:
         faiss.write_index(self._index, str(index_path))
 
         manifest_path = index_path.with_suffix(".json")
-        manifest_path.write_text(json.dumps(self._manifest, indent=2))
+        manifest_path.write_text(json.dumps(self._manifest, indent=2), encoding="utf-8")
         log.info("saved index", path=str(index_path))
 
     def load(self, *, expected_dim: int | None = None) -> None:
