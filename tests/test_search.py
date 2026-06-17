@@ -159,6 +159,35 @@ class TestSearchResult:
                 snippet="def validate(): pass",
             )
 
+    def test_rejects_non_finite_score(self) -> None:
+        with pytest.raises(ValueError, match="score must be finite"):
+            SearchResult(
+                rank=1,
+                score=float("nan"),
+                file_path="src/auth.py",
+                symbol_name="validate",
+                symbol_type="function",
+                language="python",
+                start_line=1,
+                end_line=2,
+                snippet="def validate(): pass",
+            )
+
+    def test_rejects_non_finite_rerank_score(self) -> None:
+        with pytest.raises(ValueError, match="rerank_score must be finite"):
+            SearchResult(
+                rank=1,
+                score=0.5,
+                rerank_score=float("inf"),
+                file_path="src/auth.py",
+                symbol_name="validate",
+                symbol_type="function",
+                language="python",
+                start_line=1,
+                end_line=2,
+                snippet="def validate(): pass",
+            )
+
 
 # ---------------------------------------------------------------------------
 # Snippet helper
