@@ -229,6 +229,8 @@ class Searcher:
             raise ValueError(
                 f"query must be at most {self.settings.max_query_length} characters"
             )
+        if k is not None and not isinstance(k, int):
+            raise TypeError("k must be an integer")
         if k is not None and k <= 0:
             raise ValueError("k must be positive")
         if k is not None and k > self.settings.max_search_k:
@@ -311,6 +313,8 @@ class Searcher:
                 f"query must be at most {self.settings.max_query_length} characters"
             )
         k = k if k is not None else self.settings.top_k_return
+        if not isinstance(k, int):
+            raise TypeError("k must be an integer")
         if k <= 0:
             raise ValueError("k must be positive")
         # Keep direct Python callers under the same bound as the HTTP surface.
