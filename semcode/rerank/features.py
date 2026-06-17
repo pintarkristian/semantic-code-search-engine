@@ -90,7 +90,10 @@ def add_labels(
         raise ValueError("candidates must include a chunk_id column")
     if isinstance(relevant_chunk_ids, str):
         raise TypeError("relevant_chunk_ids must be an iterable of chunk ID strings, not a string")
-    normalized_relevant = [str(chunk_id).strip() for chunk_id in relevant_chunk_ids]
+    relevant_values = list(relevant_chunk_ids)
+    if any(not isinstance(chunk_id, str) for chunk_id in relevant_values):
+        raise TypeError("relevant_chunk_ids must contain only strings")
+    normalized_relevant = [chunk_id.strip() for chunk_id in relevant_values]
     if any(not chunk_id for chunk_id in normalized_relevant):
         raise ValueError("relevant_chunk_ids must contain non-whitespace text")
     if len(set(normalized_relevant)) != len(normalized_relevant):

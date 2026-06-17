@@ -102,6 +102,11 @@ def test_add_labels_rejects_string_relevant_ids() -> None:
         add_labels("validate token", _candidate_frame(), "chunk-1")
 
 
+def test_add_labels_rejects_non_string_relevant_ids() -> None:
+    with pytest.raises(TypeError, match="only strings"):
+        add_labels("validate token", _candidate_frame(), ["a", 123])  # type: ignore[list-item]
+
+
 def test_add_labels_rejects_blank_relevant_ids() -> None:
     with pytest.raises(ValueError, match="non-whitespace"):
         add_labels("validate token", _candidate_frame(), ["chunk-1", "   "])
