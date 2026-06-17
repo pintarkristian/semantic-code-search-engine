@@ -63,6 +63,11 @@ def test_faiss_index_path_must_not_be_blank() -> None:
         Settings(faiss_index_path="   ")
 
 
+def test_metadata_path_must_not_be_blank() -> None:
+    with pytest.raises(ValidationError, match="metadata_path"):
+        Settings(metadata_path="   ")
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
