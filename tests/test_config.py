@@ -58,6 +58,11 @@ def test_data_dir_must_not_be_blank() -> None:
         Settings(data_dir="   ")
 
 
+def test_faiss_index_path_must_not_be_blank() -> None:
+    with pytest.raises(ValidationError, match="faiss_index_path"):
+        Settings(faiss_index_path="   ")
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
