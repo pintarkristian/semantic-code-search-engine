@@ -230,7 +230,7 @@ class EmbeddingCache:
         try:
             with open(self.path, "rb") as f:
                 payload = pickle.load(f)
-        except (OSError, pickle.PickleError, EOFError, AttributeError, ValueError) as exc:
+        except (OSError, pickle.PickleError, EOFError, AttributeError, ValueError, ModuleNotFoundError) as exc:
             log.warning("ignoring unreadable embedding cache", path=str(self.path), error=str(exc))
             return
 
