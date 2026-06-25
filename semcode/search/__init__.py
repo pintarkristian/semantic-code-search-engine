@@ -351,7 +351,7 @@ class Searcher:
         if k > self.settings.max_search_k:
             raise ValueError(f"k must be less than or equal to {self.settings.max_search_k}")
         reranker_enabled = self.settings.use_reranker if use_reranker is None else use_reranker
-        candidates = self.candidates(query)
+        candidates = self.candidates(query, k=k)
         ranked = self._maybe_rerank(query, candidates, reranker_enabled)
 
         results: list[SearchResult] = []
