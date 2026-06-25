@@ -319,6 +319,11 @@ class EmbeddingCache:
         vector = self._vectors.get(content_hash)
         return None if vector is None else vector.copy()
 
+    @property
+    def size(self) -> int:
+        """Number of cached embedding vectors."""
+        return len(self._vectors)
+
     def set(self, content_hash: str, vector: np.ndarray) -> None:
         if not isinstance(content_hash, str):
             raise TypeError("content_hash must be a string")
@@ -429,7 +434,7 @@ def embed_dataframe_cached(
         "chunks": len(hashes),
         "chunks_embedded": len(missing_hashes),
         "cache_hits": len(hashes) - len(missing_hashes),
-        "cache_entries": len(cache._vectors),
+        "cache_entries": cache.size,
         "elapsed_ms": elapsed_ms,
     }
     log.info(
