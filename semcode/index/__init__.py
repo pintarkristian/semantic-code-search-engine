@@ -111,7 +111,7 @@ class VectorStore:
             raise ValueError("FAISS ids must be unique")
 
         if n == 0:
-            base = faiss.IndexFlatIP(max(dim, 1))
+            base = faiss.IndexFlatIP(dim)
             index_type = "flat"
         elif n >= self.ivf_threshold:
             base = self._build_ivf(vectors, dim)
