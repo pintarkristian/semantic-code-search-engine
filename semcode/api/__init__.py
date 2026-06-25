@@ -458,7 +458,7 @@ def _rate_limited(app: FastAPI, request: Request, settings: Settings) -> bool:
     if request.url.path in _RATE_LIMIT_EXEMPT_PATHS:
         return False
     now = time.monotonic()
-    client = _client_host(request)
+    client = request.client.host if request.client else "unknown"
     window = settings.rate_limit_window_seconds
     with app.state.jobs_lock:
         hits: dict[str, list[float]] = app.state.rate_limit_hits

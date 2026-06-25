@@ -230,7 +230,7 @@ class EmbeddingCache:
         try:
             with open(self.path, "rb") as f:
                 payload = pickle.load(f)
-        except (OSError, pickle.PickleError, EOFError, AttributeError, ValueError) as exc:
+        except (OSError, pickle.PickleError, EOFError, AttributeError, ValueError, ModuleNotFoundError) as exc:
             log.warning("ignoring unreadable embedding cache", path=str(self.path), error=str(exc))
             return
 
@@ -318,6 +318,11 @@ class EmbeddingCache:
             raise ValueError("content_hash must contain non-whitespace text")
         vector = self._vectors.get(content_hash)
         return None if vector is None else vector.copy()
+
+    @property
+    def size(self) -> int:
+        """Number of cached embedding vectors."""
+        return len(self._vectors)
 
     def set(self, content_hash: str, vector: np.ndarray) -> None:
         if not isinstance(content_hash, str):
@@ -429,7 +434,7 @@ def embed_dataframe_cached(
         "chunks": len(hashes),
         "chunks_embedded": len(missing_hashes),
         "cache_hits": len(hashes) - len(missing_hashes),
-        "cache_entries": len(cache._vectors),
+        "cache_entries": cache.size,
         "elapsed_ms": elapsed_ms,
     }
     log.info(

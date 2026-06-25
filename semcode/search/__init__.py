@@ -70,7 +70,7 @@ class SearchResult(BaseModel):
             raise ValueError("SearchResult rerank_score must be finite")
         if self.start_line < 1 or self.end_line < self.start_line:
             raise ValueError("SearchResult line span must be 1-indexed and ordered")
-        for field_name in ("file_path", "symbol_name", "symbol_type", "language"):
+        for field_name in ("chunk_id", "file_path", "symbol_name", "symbol_type", "language"):
             if not str(getattr(self, field_name)).strip():
                 raise ValueError(f"SearchResult {field_name} must contain non-whitespace text")
         return self
@@ -351,7 +351,7 @@ class Searcher:
         if k > self.settings.max_search_k:
             raise ValueError(f"k must be less than or equal to {self.settings.max_search_k}")
         reranker_enabled = self.settings.use_reranker if use_reranker is None else use_reranker
-        candidates = self.candidates(query)
+        candidates = self.candidates(query, k=k)
         ranked = self._maybe_rerank(query, candidates, reranker_enabled)
 
         results: list[SearchResult] = []
