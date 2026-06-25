@@ -206,7 +206,7 @@ class BM25Retriever:
             corpus: list[list[str]] = payload["corpus"]
             if not isinstance(corpus, list):
                 raise ValueError("BM25 corpus payload must contain a list corpus")
-            doc_ids = payload.get("doc_ids", range(len(corpus)))
+            doc_ids = payload.get("doc_ids", list(range(len(corpus))))
         else:
             corpus = payload
             doc_ids = list(range(len(corpus)))
