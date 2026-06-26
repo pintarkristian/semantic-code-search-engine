@@ -626,10 +626,11 @@ class IndexingPipeline:
                 "changed_or_added": [str(value) for value in new_df["chunk_id"].tolist()],
             }
 
+        has_vector_id = "vector_id" in old_df.columns
         old_by_chunk = {
             str(row["chunk_id"]): (
                 str(row.get("content_hash", "")),
-                int(row["vector_id"]),
+                int(row["vector_id"]) if has_vector_id else None,
             )
             for _, row in old_df.iterrows()
         }
@@ -641,7 +642,7 @@ class IndexingPipeline:
 
         for chunk_id, (old_hash, vector_id) in old_by_chunk.items():
             new_hash = new_by_chunk.get(chunk_id)
-            if new_hash is None or new_hash != old_hash:
+            if (new_hash is None or new_hash != old_hash) and vector_id is not None:
                 remove_ids.append(vector_id)
 
         for _, row in new_df.iterrows():
