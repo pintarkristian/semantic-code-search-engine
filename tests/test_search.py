@@ -726,6 +726,14 @@ class TestBM25Retriever:
         with pytest.raises(ValueError, match="doc_ids must be unique"):
             BM25Retriever([["alpha"], ["beta"]], doc_ids=[7, 7])
 
+    def test_doc_ids_property_does_not_expose_internal_state(self) -> None:
+        bm25 = BM25Retriever([["alpha"], ["beta"], ["gamma"]], doc_ids=[10, 20, 30])
+
+        ids = bm25.doc_ids
+        ids[0] = 99
+
+        assert bm25.search("alpha", k=1)[0][0] == 10
+
     def test_rejects_non_list_documents(self) -> None:
         with pytest.raises(ValueError, match="token lists"):
             BM25Retriever([["alpha"], "beta"])  # type: ignore[list-item]
