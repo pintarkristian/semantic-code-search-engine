@@ -99,7 +99,7 @@ class BM25Retriever:
     @property
     def doc_ids(self) -> list[int]:
         """Document IDs aligned to the tokenized corpus."""
-        return self._doc_ids
+        return self._doc_ids.copy()
 
     # ------------------------------------------------------------------
     # Search
