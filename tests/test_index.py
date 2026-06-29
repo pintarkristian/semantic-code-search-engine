@@ -107,6 +107,19 @@ def test_build_sets_manifest(tmp_path: Path) -> None:
     assert store.manifest["index_type"] == "flat"
 
 
+def test_manifest_property_does_not_expose_internal_state(tmp_path: Path) -> None:
+    vecs = _unit_vectors(10)
+    store = VectorStore(_settings(tmp_path))
+    store.build(vecs)
+
+    manifest = store.manifest
+    assert manifest is not None
+    manifest["chunk_count"] = 999
+
+    assert store.manifest is not None
+    assert store.manifest["chunk_count"] == 10
+
+
 def test_build_ivf_above_threshold(tmp_path: Path) -> None:
     # Use ivf_threshold=20 so a small corpus triggers IVF
     vecs = _unit_vectors(100)
