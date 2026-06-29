@@ -352,7 +352,7 @@ class VectorStore:
 
     @property
     def manifest(self) -> dict | None:
-        return self._manifest
+        return None if self._manifest is None else self._manifest.copy()
 
     @property
     def ntotal(self) -> int:
