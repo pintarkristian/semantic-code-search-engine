@@ -75,7 +75,7 @@ class BM25Retriever:
                 raise ValueError("BM25 corpus documents must be token lists")
             if any(not isinstance(token, str) for token in doc):
                 raise ValueError("BM25 corpus tokens must be strings")
-        self._corpus = corpus
+        self._corpus = [doc.copy() for doc in corpus]
         raw_doc_ids = doc_ids if doc_ids is not None else list(range(len(corpus)))
         if isinstance(raw_doc_ids, str):
             raise ValueError("BM25 doc_ids must be a list of integers")
@@ -89,12 +89,12 @@ class BM25Retriever:
             raise ValueError(f"Expected {len(corpus)} doc_ids, got {len(self._doc_ids)}")
         if len(set(self._doc_ids)) != len(self._doc_ids):
             raise ValueError("BM25 doc_ids must be unique")
-        self._bm25: BM25Okapi | None = BM25Okapi(corpus) if corpus else None
+        self._bm25: BM25Okapi | None = BM25Okapi(self._corpus) if self._corpus else None
 
     @property
     def corpus(self) -> list[list[str]]:
         """Tokenized documents in metadata row order."""
-        return self._corpus
+        return [doc.copy() for doc in self._corpus]
 
     @property
     def doc_ids(self) -> list[int]:

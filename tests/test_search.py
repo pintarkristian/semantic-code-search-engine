@@ -734,6 +734,22 @@ class TestBM25Retriever:
 
         assert bm25.search("alpha", k=1)[0][0] == 10
 
+    def test_constructor_copies_corpus_input(self) -> None:
+        corpus = [["alpha"], ["beta"], ["gamma"]]
+        bm25 = BM25Retriever(corpus)
+
+        corpus[0].clear()
+
+        assert bm25.corpus[0] == ["alpha"]
+
+    def test_corpus_property_does_not_expose_internal_state(self) -> None:
+        bm25 = BM25Retriever([["alpha"], ["beta"], ["gamma"]])
+
+        corpus = bm25.corpus
+        corpus[0].clear()
+
+        assert bm25.corpus[0] == ["alpha"]
+
     def test_rejects_non_list_documents(self) -> None:
         with pytest.raises(ValueError, match="token lists"):
             BM25Retriever([["alpha"], "beta"])  # type: ignore[list-item]
