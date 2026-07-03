@@ -278,7 +278,11 @@ class EmbeddingCache:
         loaded: dict[str, np.ndarray] = {}
         skipped = 0
         for key, value in vectors.items():
-            vector = np.asarray(value, dtype=np.float32)
+            try:
+                vector = np.asarray(value, dtype=np.float32)
+            except (TypeError, ValueError):
+                skipped += 1
+                continue
             if vector.shape != (self.dimension,):
                 skipped += 1
                 continue
