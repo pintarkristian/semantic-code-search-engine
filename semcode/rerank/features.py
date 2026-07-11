@@ -28,7 +28,14 @@ FEATURE_COLUMNS: list[str] = [
 
 
 def _tokens(text: object) -> set[str]:
-    return set(tokenize(str(text or "")))
+    if text is None:
+        return set()
+    try:
+        if pd.isna(text):
+            return set()
+    except (TypeError, ValueError):
+        pass
+    return set(tokenize(str(text)))
 
 
 def _numeric_feature(row: pd.Series, column: str) -> float:

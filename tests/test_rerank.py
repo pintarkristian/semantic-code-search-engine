@@ -87,6 +87,17 @@ def test_feature_builder_trims_language_values() -> None:
     assert features.loc[0, "lang_other"] == 0.0
 
 
+def test_feature_builder_treats_missing_text_values_as_empty() -> None:
+    candidates = _candidate_frame()
+    candidates.loc[0, "docstring"] = pd.NA
+    candidates.loc[1, "code"] = np.nan
+
+    features = build_features("validate token", candidates)
+
+    assert features["query_tokens_in_docstring"].tolist() == [0.0, 0.0]
+    assert features["query_code_len_ratio"].notna().all()
+
+
 def test_feature_builder_rejects_blank_query() -> None:
     with pytest.raises(ValueError, match="query must contain"):
         build_features("   ", _candidate_frame())
